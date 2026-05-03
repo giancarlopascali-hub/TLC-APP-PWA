@@ -1,0 +1,17 @@
+{
+  "name": "AQ-TLC Mobile Workstation",
+  "short_name": "AQ-TLC",
+  "description": "High-precision densitometry & quantitative chromatography analysis.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#121212",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
