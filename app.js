@@ -96,15 +96,15 @@ const DrawerTemplates = {
       <div class="drawer-section-title">Peak Integration</div>
       <div class="slider-group" style="margin-bottom: 16px;">
         <div class="slider-header"><label>Sensitivity</label><span id="val-sens">40</span></div>
-        <input type="range" id="peak-prominence" min="1" max="80" value="40">
+        <input type="range" id="peak-prominence" min="1" max="80" value="40" oninput="document.getElementById('val-sens').innerText=this.value; if(window.generateProfiles) window.generateProfiles();">
       </div>
       <div class="slider-group" style="margin-bottom: 16px;">
         <div class="slider-header"><label>Resolution</label><span id="val-res">8</span></div>
-        <input type="range" id="peak-distance" min="1" max="100" value="8">
+        <input type="range" id="peak-distance" min="1" max="100" value="8" oninput="document.getElementById('val-res').innerText=this.value; if(window.generateProfiles) window.generateProfiles();">
       </div>
       <div class="slider-group">
         <div class="slider-header"><label>Width %</label><span id="val-width">50</span></div>
-        <input type="range" id="peak-threshold" min="5" max="95" value="50">
+        <input type="range" id="peak-threshold" min="5" max="95" value="50" oninput="document.getElementById('val-width').innerText=this.value; if(window.generateProfiles) window.generateProfiles();">
       </div>
       <button class="btn-secondary" id="btn-restore" style="margin-top: 16px;">Restore Defaults</button>
     </div>
@@ -295,7 +295,8 @@ UI.fileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files.length) {
     handleFile(e.target.files[0]);
   }
-  e.target.value = ''; // Reset so the same file can be selected again
+  // Delay clearing the input value so mobile Safari doesn't abort the active FileReader synchronously
+  setTimeout(() => { e.target.value = ''; }, 1000);
 });
 
 // ── Tools & Interaction Logic ─────────────────────────────────────────────────
@@ -366,6 +367,14 @@ cv.addEventListener('touchmove', handlePointerMove, {passive: false});
 cv.addEventListener('touchend', handlePointerUp);
 
 function findLanes() {
+    if (state.lines.length < 2) {
+        alert("Please draw at least 2 lines (Origin and Front) using the 'Lines' tool before finding lanes.");
+        return;
+    }
+    if (state.spottingMarks.length < 1) {
+        alert("Please place at least 1 spotting mark using the 'Marks' tool to define lane positions.");
+        return;
+    }
     state.lanes = [];
     const pool = [...state.lines];
     const pairs = [];
@@ -425,13 +434,18 @@ function findLanes() {
 
 async function generateProfiles() {
     if (state.lanes.length === 0 || !state.imgB64) return;
+    
+    const sens = $('peak-prominence') ? parseInt($('peak-prominence').value) : 40;
+    const dist = $('peak-distance') ? parseInt($('peak-distance').value) : 8;
+    const thres = $('peak-threshold') ? parseInt($('peak-threshold').value) : 50;
+    
     try {
         const res = await fetch('/generate_profiles', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
                 image: state.imgB64, lanes: state.lanes, 
                 peak_detection: true, 
-                peak_prominence: 40, peak_distance: 8, peak_threshold: 50,
+                peak_prominence: sens, peak_distance: dist, peak_threshold: thres,
                 smooth_sigma: 1.5, polarity_mode: state.polarityMode
             })
         });
@@ -446,6 +460,7 @@ async function generateProfiles() {
         }
     } catch(e) { console.error("Error fetching profiles:", e); }
 }
+window.generateProfiles = generateProfiles;
 
 function renderDensitograms() {
     const list = $('densitogram-list');
@@ -485,6 +500,9 @@ function renderTable() {
 }
 
 } // End of initApp
+
+// Expose generateProfiles for the dynamically created sliders
+window.generateProfiles = null; 
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
