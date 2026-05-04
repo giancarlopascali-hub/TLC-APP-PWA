@@ -273,37 +273,62 @@ function render() {
   ctx.restore(); ctx.restore();
 }
 
+// ── Debug Overlay ─────────────────────────────────────────────────────────────
+function dbg(msg) {
+  let el = document.getElementById('debug-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'debug-overlay';
+    el.style.cssText = 'position:fixed;bottom:80px;left:0;right:0;background:rgba(0,0,0,0.85);color:#0f0;font-size:11px;font-family:monospace;padding:8px;z-index:9999;max-height:200px;overflow-y:auto;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML += '<div>[' + new Date().toISOString().slice(11,19) + '] ' + msg + '</div>';
+  el.scrollTop = el.scrollHeight;
+  console.log('[DBG]', msg);
+}
+
 // ── Upload Logic ──────────────────────────────────────────────────────────────
 function handleFile(file) {
-  if (!file) return; 
-  const reader = new FileReader(); 
-  reader.onload = e => {
-    const img = new Image(); 
-    img.onload = () => {
-      state.imgEl = img; const s = Math.min(1, 1000/Math.max(img.naturalWidth, img.naturalHeight));
-      state.imgW = Math.round(img.naturalWidth*s); state.imgH = Math.round(img.naturalHeight*s);
-      const c = document.createElement('canvas'); c.width=state.imgW; c.height=state.imgH;
-      c.getContext('2d').drawImage(img,0,0,state.imgW,state.imgH); 
-      state.imgB64 = c.toDataURL('image/jpeg', 0.9);
-      
-      $('upload-prompt').style.display='none'; 
-      $('canvas-container').style.display='flex';
-      
-      function checkRender() {
-          if (window.innerWidth === 0) requestAnimationFrame(checkRender);
-          else render();
-      }
-      checkRender();
+  if (!file) { dbg('handleFile: no file'); return; }
+  dbg('handleFile: ' + file.name + ' (' + (file.size/1024).toFixed(1) + 'KB, ' + file.type + ')');
+  try {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      dbg('FileReader.onload fired');
+      try {
+        const img = new Image();
+        img.onload = function() {
+          dbg('img.onload: ' + img.naturalWidth + 'x' + img.naturalHeight);
+          try {
+            const s = Math.min(1, 1000/Math.max(img.naturalWidth, img.naturalHeight, 1));
+            state.imgEl = img;
+            state.imgW = Math.round(img.naturalWidth * s);
+            state.imgH = Math.round(img.naturalHeight * s);
+            dbg('scaled to ' + state.imgW + 'x' + state.imgH);
+            const c = document.createElement('canvas');
+            c.width = state.imgW; c.height = state.imgH;
+            c.getContext('2d').drawImage(img, 0, 0, state.imgW, state.imgH);
+            state.imgB64 = c.toDataURL('image/jpeg', 0.9);
+            dbg('imgB64 ready, len=' + state.imgB64.length);
+            var prompt = document.getElementById('upload-prompt');
+            var container = document.getElementById('canvas-container');
+            dbg('prompt=' + !!prompt + ' container=' + !!container);
+            if (prompt) prompt.style.display = 'none';
+            if (container) container.style.display = 'flex';
+            dbg('window: ' + window.innerWidth + 'x' + window.innerHeight);
+            try { render(); dbg('render() OK'); }
+            catch(re) { dbg('render() ERROR: ' + re.message); }
+          } catch(err) { dbg('ERROR img.onload body: ' + err.message); alert(err.message); }
+        };
+        img.onerror = function() { dbg('img.onerror fired'); alert('Browser could not decode this image type. Try JPG or PNG.'); };
+        dbg('setting img.src');
+        img.src = e.target.result;
+      } catch(err) { dbg('ERROR after onload: ' + err.message); }
     };
-    img.onerror = () => {
-        alert("Error loading image! Ensure it is a valid JPG or PNG (HEIC files from iPhones are not supported natively by browsers).");
-    };
-    img.src = e.target.result;
-  };
-  reader.onerror = () => {
-    alert('Error reading file. Please try a different image.');
-  };
-  reader.readAsDataURL(file);
+    reader.onerror = function(err) { dbg('FileReader.onerror: ' + err); alert('File read error'); };
+    reader.readAsDataURL(file);
+    dbg('readAsDataURL called');
+  } catch(err) { dbg('FATAL: ' + err.message); alert('Fatal: ' + err.message); }
 }
 
 // Native HTML <label> elements handle opening the file picker now.
