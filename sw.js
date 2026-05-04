@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aq-tlc-pwa-v1';
+const CACHE_NAME = 'aq-tlc-pwa-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -20,13 +20,14 @@ self.addEventListener('install', event => {
 
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        if (response) {
-          return response; // Return from cache
-        }
-        return fetch(event.request); // Fallback to network
+        // Cache the latest version if successful
+        const resClone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone));
+        return response;
       })
+      .catch(() => caches.match(event.request)) // Fallback to cache
   );
 });
 
