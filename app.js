@@ -192,6 +192,7 @@ function getPos(e, canvas) {
 function render() {
   const canvas = $('canvas-main'); if (!state.imgEl || !canvas) return;
   const wrap = canvas.parentElement; 
+  if (wrap.clientWidth === 0 || wrap.clientHeight === 0) return; // Wait for layout
   if (canvas.width !== wrap.clientWidth || canvas.height !== wrap.clientHeight) {
       canvas.width = wrap.clientWidth; 
       canvas.height = wrap.clientHeight;
@@ -265,7 +266,7 @@ function handleFile(file) {
       
       $('upload-prompt').style.display='none'; 
       $('canvas-container').style.display='flex';
-      render();
+      setTimeout(render, 50); // Delay render to ensure layout is complete
     };
     img.src = e.target.result;
   };
@@ -275,7 +276,10 @@ function handleFile(file) {
 // Native HTML <label> elements handle opening the file picker now.
 
 UI.fileInput.addEventListener('change', (e) => {
-  if (e.target.files && e.target.files.length) handleFile(e.target.files[0]);
+  if (e.target.files && e.target.files.length) {
+    handleFile(e.target.files[0]);
+  }
+  e.target.value = ''; // Reset so the same file can be selected again
 });
 
 // ── Tools & Interaction Logic ─────────────────────────────────────────────────
