@@ -272,12 +272,7 @@ function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
-UI.btnUpload.addEventListener('click', () => UI.fileInput.click());
-const uploadPromptEl = $('upload-prompt');
-if (uploadPromptEl) {
-  uploadPromptEl.addEventListener('click', () => UI.fileInput.click());
-  uploadPromptEl.style.cursor = 'pointer';
-}
+// Native HTML <label> elements handle opening the file picker now.
 
 UI.fileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files.length) handleFile(e.target.files[0]);
