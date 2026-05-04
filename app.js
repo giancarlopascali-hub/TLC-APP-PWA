@@ -44,6 +44,13 @@ const UI = {
   fileInput: $('file-input')
 };
 
+const canvasWrap = $('canvas-container');
+if (canvasWrap && window.ResizeObserver) {
+    new ResizeObserver(() => {
+        if (state.imgEl && canvasWrap.clientWidth > 0) render();
+    }).observe(canvasWrap);
+}
+
 // ── TLC Core State ────────────────────────────────────────────────────────────
 const state = {
   imgEl: null, imgB64: null, imgW: 0, imgH: 0,
@@ -257,7 +264,8 @@ function handleFile(file) {
   if (!file) return; 
   const reader = new FileReader(); 
   reader.onload = e => {
-    const img = new Image(); img.onload = () => {
+    const img = new Image(); 
+    img.onload = () => {
       state.imgEl = img; const s = Math.min(1, 1000/Math.max(img.naturalWidth, img.naturalHeight));
       state.imgW = Math.round(img.naturalWidth*s); state.imgH = Math.round(img.naturalHeight*s);
       const c = document.createElement('canvas'); c.width=state.imgW; c.height=state.imgH;
@@ -266,7 +274,15 @@ function handleFile(file) {
       
       $('upload-prompt').style.display='none'; 
       $('canvas-container').style.display='flex';
-      setTimeout(render, 50); // Delay render to ensure layout is complete
+      
+      function checkRender() {
+          if ($('canvas-container').clientWidth === 0) requestAnimationFrame(checkRender);
+          else render();
+      }
+      checkRender();
+    };
+    img.onerror = () => {
+        alert("Error loading image! Ensure it is a valid JPG or PNG (HEIC files from iPhones are not supported natively by browsers).");
     };
     img.src = e.target.result;
   };
