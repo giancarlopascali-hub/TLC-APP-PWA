@@ -253,6 +253,12 @@ function handleFile(file) {
 }
 
 UI.btnUpload.addEventListener('click', () => UI.fileInput.click());
+const uploadPromptEl = $('upload-prompt');
+if (uploadPromptEl) {
+  uploadPromptEl.addEventListener('click', () => UI.fileInput.click());
+  uploadPromptEl.style.cursor = 'pointer';
+}
+
 UI.fileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files.length) handleFile(e.target.files[0]);
 });
