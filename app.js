@@ -44,12 +44,7 @@ const UI = {
   fileInput: $('file-input')
 };
 
-const canvasWrap = $('canvas-container');
-if (canvasWrap && window.ResizeObserver) {
-    new ResizeObserver(() => {
-        if (state.imgEl && canvasWrap.clientWidth > 0) render();
-    }).observe(canvasWrap);
-}
+// ResizeObserver moved below state declaration to avoid Temporal Dead Zone crash
 
 // ── TLC Core State ────────────────────────────────────────────────────────────
 const state = {
@@ -63,6 +58,14 @@ const state = {
   editingField: null,
   polarityMode: 'default'
 };
+
+// ResizeObserver: re-render when canvas container is resized/shown
+const canvasWrap = $('canvas-container');
+if (canvasWrap && window.ResizeObserver) {
+    new ResizeObserver(() => {
+        if (state.imgEl && canvasWrap.clientWidth > 0) render();
+    }).observe(canvasWrap);
+}
 
 // ── Hamburger Menu Logic ──────────────────────────────────────────────────────
 const DrawerTemplates = {
