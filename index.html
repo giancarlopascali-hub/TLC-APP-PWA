@@ -13,6 +13,15 @@
   <link rel="stylesheet" href="index.css?v=11">
 </head>
 <body class="dark-mode">
+  <!-- CRITICAL: Unregister all old service workers immediately to prevent stale cache loops -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(r) { r.unregister(); console.log('SW unregistered:', r.scope); });
+        if (regs.length > 0) { console.log('Unregistered ' + regs.length + ' old SW(s). Reloading once to get fresh files...'); window.location.reload(); }
+      });
+    }
+  </script>
   <div class="app-container">
 
     <!-- Top App Bar -->

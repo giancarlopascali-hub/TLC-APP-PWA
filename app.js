@@ -1,11 +1,6 @@
-// Service Worker Registration — NO auto-reload to avoid file dialog race condition
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => { console.log('SW registered'); reg.update(); })
-      .catch(e => console.log('SW fail:', e));
-  });
-}
+// Service Worker disabled during debugging to prevent caching issues.
+// Re-enable once the app is stable.
+// if ('serviceWorker' in navigator) { ... }
 
 const $ = id => document.getElementById(id);
 
