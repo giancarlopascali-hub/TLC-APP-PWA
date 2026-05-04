@@ -27,7 +27,7 @@ if ('serviceWorker' in navigator) {
 const $ = id => document.getElementById(id);
 
 // ── App Scope ────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
 
 // ── UI State Management ───────────────────────────────────────────────────────
 const UI = {
@@ -469,4 +469,10 @@ function renderTable() {
     });
 }
 
-}); // End of DOMContentLoaded
+} // End of initApp
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
