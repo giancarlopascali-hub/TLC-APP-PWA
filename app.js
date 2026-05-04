@@ -1,7 +1,30 @@
-// Service Worker Registration
+// Service Worker Registration & Auto-Update Logic
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').then(r => console.log('SW registered')).catch(e => console.log('SW fail: ', e));
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      console.log('SW registered');
+      
+      // Check for updates every time we navigate
+      reg.update();
+
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            console.log('New update available! Reloading...');
+          }
+        });
+      });
+    }).catch(e => console.log('SW fail: ', e));
+
+    // Listen for the controlling service worker changing (e.g. self.skipWaiting() was called)
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload(true); // Force reload to get the new app
+      }
+    });
   });
 }
 

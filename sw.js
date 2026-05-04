@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aq-tlc-pwa-v2';
+const CACHE_NAME = 'aq-tlc-pwa-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting(); // Force the waiting service worker to become the active service worker
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -38,10 +39,10 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
+            return caches.delete(cacheName); // Purge old caches
           }
         })
       );
-    })
+    }).then(() => self.clients.claim()) // Take control of all pages immediately
   );
 });
