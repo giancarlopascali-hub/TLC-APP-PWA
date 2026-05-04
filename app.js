@@ -1,34 +1,31 @@
-// Service Worker Registration & Auto-Update Logic
+// Service Worker Registration — NO auto-reload to avoid file dialog race condition
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').then(reg => {
-      console.log('SW registered');
-      reg.update();
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            console.log('New update available! Reloading...');
-          }
-        });
-      });
-    }).catch(e => console.log('SW fail: ', e));
-
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload(true);
-      }
-    });
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => { console.log('SW registered'); reg.update(); })
+      .catch(e => console.log('SW fail:', e));
   });
 }
 
 const $ = id => document.getElementById(id);
 
+// Debug overlay — defined OUTSIDE initApp so it survives any crash
+function dbg(msg) {
+  let el = document.getElementById('debug-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'debug-overlay';
+    el.style.cssText = 'position:fixed;bottom:70px;left:0;right:0;background:rgba(0,0,0,0.9);color:#0f0;font-size:11px;font-family:monospace;padding:6px 8px;z-index:9999;max-height:180px;overflow-y:auto;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML += '<div>[' + new Date().toISOString().slice(11,19) + '] ' + msg + '</div>';
+  el.scrollTop = el.scrollHeight;
+  console.log('[DBG]', msg);
+}
+
 // ── App Scope ────────────────────────────────────────────────────────────────
 function initApp() {
-
+  dbg('initApp() started');
 // ── UI State Management ───────────────────────────────────────────────────────
 const UI = {
   activeTab: 'tab-image',
@@ -332,6 +329,7 @@ function handleFile(file) {
 }
 
 // Native HTML <label> elements handle opening the file picker now.
+dbg('Attaching file input listeners');
 
 UI.fileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files.length) {
@@ -557,7 +555,9 @@ function renderTable() {
 window.generateProfiles = null; 
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+  document.addEventListener('DOMContentLoaded', () => {
+    try { initApp(); } catch(e) { dbg('CRASH in initApp: ' + e.message); }
+  });
 } else {
-    initApp();
+  try { initApp(); } catch(e) { dbg('CRASH in initApp: ' + e.message); }
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aq-tlc-pwa-v10';
+const CACHE_NAME = 'aq-tlc-pwa-v11';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
