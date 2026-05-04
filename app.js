@@ -3,10 +3,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       console.log('SW registered');
-      
-      // Check for updates every time we navigate
       reg.update();
-
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         newWorker.addEventListener('statechange', () => {
@@ -17,18 +14,20 @@ if ('serviceWorker' in navigator) {
       });
     }).catch(e => console.log('SW fail: ', e));
 
-    // Listen for the controlling service worker changing (e.g. self.skipWaiting() was called)
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) {
         refreshing = true;
-        window.location.reload(true); // Force reload to get the new app
+        window.location.reload(true);
       }
     });
   });
 }
 
 const $ = id => document.getElementById(id);
+
+// ── App Scope ────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
 
 // ── UI State Management ───────────────────────────────────────────────────────
 const UI = {
@@ -113,7 +112,6 @@ const DrawerTemplates = {
 };
 
 function bindDrawerEvents() {
-    // Tool switching
     document.querySelectorAll('.tool-card').forEach(card => {
         if (card.dataset.tool === state.activeTool) {
             document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('active'));
@@ -125,7 +123,6 @@ function bindDrawerEvents() {
         };
     });
 
-    // Actions
     if ($('btn-find-lanes')) {
         $('btn-find-lanes').onclick = () => {
             findLanes();
@@ -226,7 +223,7 @@ function render() {
     ctx.save(); ctx.translate(l.cx*sx, l.cy*sy); ctx.rotate((l.angle || 0) - state.imageRotation);
     ctx.strokeStyle = isS ? '#ffc107' : (isOrigin ? '#f0883e' : '#238636');
     ctx.lineWidth = 4/state.view.zoom; ctx.beginPath(); ctx.moveTo(-l.w*sx/2, 0); ctx.lineTo(l.w*sx/2, 0); ctx.stroke();
-    ctx.fillStyle = ctx.strokeStyle; ctx.font = \`bold \${12/state.view.zoom}px Inter\`;
+    ctx.fillStyle = ctx.strokeStyle; ctx.font = `bold ${12/state.view.zoom}px Inter`;
     ctx.fillText(isOrigin ? "ORIGIN" : "FRONT", -l.w*sx/2, -8/state.view.zoom);
     ctx.restore();
   });
@@ -288,43 +285,45 @@ UI.fileInput.addEventListener('change', (e) => {
 
 // ── Tools & Interaction Logic ─────────────────────────────────────────────────
 const cv = $('canvas-main');
-cv.addEventListener('touchstart', e => {
-    if (e.touches.length === 1) {
-        const p = getPos(e, cv); state.dragStart = p;
-        state.mStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
-        if (state.activeTool === 'select' || state.activeTool === 'pan') {
-            const mHit = state.spottingMarks.find(m => Math.sqrt((p.x-m.x)**2 + (p.y-m.y)**2) < 12);
-            if (mHit) { state.activeMark = mHit; state.editingField = 'move-mark'; }
-            else {
-                state.activeMark = null; state.activeLine = null; state.activeLane = null;
-                if (state.activeTool === 'pan') state.isPanning = true;
-                state.viewStart = { ...state.view };
-            }
-        } else if (state.activeTool === 'roi') { 
-            state.roiRect = { x: p.x, y: p.y, w: 1, h: 1 }; 
-        } else if (state.activeTool === 'line') {
-            const nl = { cx: p.x, cy: p.y, w: 1, angle: 0 }; 
-            state.lines.push(nl); state.activeLine = nl; state.editingField = 'resize-line';
-        } else if (state.activeTool === 'spotting') {
-            state.spottingMarks.push({ x: p.x, y: p.y });
-        } else if (state.activeTool === 'rotate_img') { 
-            state.isRotating = true; state.rotateStart = state.imageRotation; 
+function handlePointerDown(e) {
+    state.isPanning = false; // reset
+    const p = getPos(e, cv); state.dragStart = p;
+    state.mStart = { x: e.clientX || e.touches[0].clientX, y: e.clientY || e.touches[0].clientY };
+
+    if (state.activeTool === 'select' || state.activeTool === 'pan') {
+        const mHit = state.spottingMarks.find(m => Math.sqrt((p.x-m.x)**2 + (p.y-m.y)**2) < 12);
+        if (mHit) { state.activeMark = mHit; state.editingField = 'move-mark'; }
+        else {
+            state.activeMark = null; state.activeLine = null; state.activeLane = null;
+            if (state.activeTool === 'pan') state.isPanning = true;
+            state.viewStart = { ...state.view };
         }
-        render();
+    } else if (state.activeTool === 'roi') { 
+        state.roiRect = { x: p.x, y: p.y, w: 1, h: 1 }; 
+    } else if (state.activeTool === 'line') {
+        const nl = { cx: p.x, cy: p.y, w: 1, angle: 0 }; 
+        state.lines.push(nl); state.activeLine = nl; state.editingField = 'resize-line';
+    } else if (state.activeTool === 'spotting') {
+        state.spottingMarks.push({ x: p.x, y: p.y });
+    } else if (state.activeTool === 'rotate_img') { 
+        state.isRotating = true; state.rotateStart = state.imageRotation; 
     }
-}, {passive: false});
+    render();
+}
 
-cv.addEventListener('touchmove', e => {
+function handlePointerMove(e) {
     if (!state.dragStart) return;
     const p = getPos(e, cv);
+    const cx = e.clientX || e.touches[0].clientX;
+    const cy = e.clientY || e.touches[0].clientY;
     
-    if (state.isPanning && e.touches.length === 1) {
+    if (state.isPanning) {
         e.preventDefault();
-        state.view.dx = state.viewStart.dx + (e.touches[0].clientX - state.mStart.x);
-        state.view.dy = state.viewStart.dy + (e.touches[0].clientY - state.mStart.y);
+        state.view.dx = state.viewStart.dx + (cx - state.mStart.x);
+        state.view.dy = state.viewStart.dy + (cy - state.mStart.y);
     } else if (state.isRotating) { 
-        state.imageRotation = state.rotateStart + (e.touches[0].clientX - state.mStart.x)*0.002; 
+        state.imageRotation = state.rotateStart + (cx - state.mStart.x)*0.002; 
     } else if (state.editingField === 'move-mark') {
         state.activeMark.x = p.x; state.activeMark.y = p.y;
     } else if (state.editingField === 'resize-line') { 
@@ -335,11 +334,21 @@ cv.addEventListener('touchmove', e => {
         state.roiRect.w = p.x-state.roiRect.x; state.roiRect.h = p.y-state.roiRect.y; 
     }
     render();
-}, {passive: false});
+}
 
-cv.addEventListener('touchend', () => {
+function handlePointerUp() {
     state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; 
-});
+}
+
+cv.addEventListener('pointerdown', handlePointerDown);
+cv.addEventListener('pointermove', handlePointerMove);
+cv.addEventListener('pointerup', handlePointerUp);
+cv.addEventListener('pointerleave', handlePointerUp);
+
+// Also keep touch listeners for fallback on older mobile browsers
+cv.addEventListener('touchstart', handlePointerDown, {passive: false});
+cv.addEventListener('touchmove', handlePointerMove, {passive: false});
+cv.addEventListener('touchend', handlePointerUp);
 
 function findLanes() {
     state.lanes = [];
@@ -428,7 +437,6 @@ function renderDensitograms() {
     if (!list) return;
     list.style.display = 'block';
     
-    // Simplistic port of densitogram view for mobile
     list.innerHTML = state.lanes.map(l => {
         return \`<div style="padding:16px; border-bottom:1px solid rgba(255,255,255,0.1)">
             <h4>Lane \${l.id} - \${l.peaks.length} Peaks</h4>
@@ -460,3 +468,5 @@ function renderTable() {
         });
     });
 }
+
+}); // End of DOMContentLoaded
