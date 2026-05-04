@@ -201,13 +201,24 @@ function getPos(e, canvas) {
 
 function render() {
   const canvas = $('canvas-main'); if (!state.imgEl || !canvas) return;
-  const wrap = canvas.parentElement; 
-  if (wrap.clientWidth === 0 || wrap.clientHeight === 0) return; // Wait for layout
-  if (canvas.width !== wrap.clientWidth || canvas.height !== wrap.clientHeight) {
-      canvas.width = wrap.clientWidth; 
-      canvas.height = wrap.clientHeight;
+  const wrap = canvas.parentElement;
+  
+  // Compute size explicitly: fill viewport minus top-bar and bottom-nav
+  const topBar = document.querySelector('.top-bar');
+  const bottomNav = document.querySelector('.bottom-nav');
+  const topH = topBar ? topBar.offsetHeight : 56;
+  const botH = bottomNav ? bottomNav.offsetHeight : 60;
+  const targetW = window.innerWidth;
+  const targetH = window.innerHeight - topH - botH;
+  
+  if (targetW === 0 || targetH === 0) return;
+  
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
   }
   const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   ctx.save(); ctx.translate(state.view.dx, state.view.dy); ctx.scale(state.view.zoom, state.view.zoom);
 
@@ -279,7 +290,7 @@ function handleFile(file) {
       $('canvas-container').style.display='flex';
       
       function checkRender() {
-          if ($('canvas-container').clientWidth === 0) requestAnimationFrame(checkRender);
+          if (window.innerWidth === 0) requestAnimationFrame(checkRender);
           else render();
       }
       checkRender();
@@ -288,6 +299,9 @@ function handleFile(file) {
         alert("Error loading image! Ensure it is a valid JPG or PNG (HEIC files from iPhones are not supported natively by browsers).");
     };
     img.src = e.target.result;
+  };
+  reader.onerror = () => {
+    alert('Error reading file. Please try a different image.');
   };
   reader.readAsDataURL(file);
 }
@@ -298,9 +312,19 @@ UI.fileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files.length) {
     handleFile(e.target.files[0]);
   }
-  // Delay clearing the input value so mobile Safari doesn't abort the active FileReader synchronously
   setTimeout(() => { e.target.value = ''; }, 1000);
 });
+
+// Camera capture input
+const cameraInput = $('camera-input');
+if (cameraInput) {
+  cameraInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length) {
+      handleFile(e.target.files[0]);
+    }
+    setTimeout(() => { e.target.value = ''; }, 1000);
+  });
+}
 
 // ── Tools & Interaction Logic ─────────────────────────────────────────────────
 const cv = $('canvas-main');

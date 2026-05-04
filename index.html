@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="index.css?v=8">
+  <link rel="stylesheet" href="index.css?v=9">
 </head>
 <body class="dark-mode">
   <div class="app-container">
@@ -24,7 +24,11 @@
       <label for="file-input" class="icon-btn" id="btn-upload" aria-label="Upload Image" style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
       </label>
+      <label for="camera-input" class="icon-btn" aria-label="Take Photo" style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      </label>
       <input type="file" id="file-input" accept="image/*" style="display:none">
+      <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
     </header>
 
     <!-- Side Navigation Drawer (Hamburger Menu) -->
@@ -111,6 +115,6 @@
     </nav>
 
   </div>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
