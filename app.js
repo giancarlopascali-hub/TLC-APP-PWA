@@ -12,7 +12,12 @@ const state = {
   undoStack: [],
   chartView: { zoom: 1, offset: 0 },
   polarityMode: 'default',
-  activeTab: 'tab-image'
+  activeTab: 'tab-image',
+  
+  // Multi-touch tracking
+  pointers: new Map(),
+  initialPinchDist: 0,
+  initialPinchZoom: 1
 };
 
 const $ = id => document.getElementById(id);
@@ -22,15 +27,18 @@ function render() {
   const canvas = $('canvas-main'); if (!state.imgEl || !canvas) return;
   const ctx = canvas.getContext('2d');
   if (canvas.width === 0 || canvas.height === 0) handleResize();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  ctx.save(); ctx.translate(state.view.dx, state.view.dy); ctx.scale(state.view.zoom, state.view.zoom);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(state.view.dx, state.view.dy);
+  ctx.scale(state.view.zoom, state.view.zoom);
 
   const drawW = canvas.width; const sx = drawW / state.imgW; const sy = sx;
   const drawH = state.imgH * sy;
 
   ctx.save();
-  ctx.translate((state.imgW*sx)/2, (state.imgH*sy)/2); ctx.rotate(state.imageRotation);
+  ctx.translate((state.imgW*sx)/2, (state.imgH*sy)/2); 
+  ctx.rotate(state.imageRotation);
   ctx.drawImage(state.imgEl, -(state.imgW*sx)/2, -(state.imgH*sy)/2, drawW, drawH);
   ctx.translate(-(state.imgW*sx)/2, -(state.imgH*sy)/2);
 
@@ -111,7 +119,148 @@ function render() {
   ctx.restore(); ctx.restore();
 }
 
-// --- Analytical & API ---
+// --- Interaction Logic ---
+function getPos(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const scX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const scY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  const z = state.view.zoom;
+  let x = (scX - state.view.dx) / z; let y = (scY - state.view.dy) / z;
+  const sx = canvas.width / state.imgW;
+  const icx = (state.imgW*sx)/2, icy = (state.imgH*sx)/2;
+  const sa = Math.sin(-state.imageRotation), ca = Math.cos(-state.imageRotation);
+  const rx = (x-icx)*ca - (y-icy)*sa, ry = (x-icx)*sa + (y-icy)*ca;
+  return { x: (rx+icx)/sx, y: (ry+icy)/sx, cx: x, cy: y, rawX: scX, rawY: scY };
+}
+
+function getImageCanvasPos(x, y, sx, sy) {
+  const icx = (state.imgW*sx)/2, icy = (state.imgH*sy)/2;
+  const ca = Math.cos(state.imageRotation), sa = Math.sin(state.imageRotation);
+  return { cx: (x*sx-icx)*ca - (y*sy-icy)*sa + icx, cy: (x*sx-icx)*sa + (y*sy-icy)*ca + icy };
+}
+
+function attachListeners() {
+    const cv = $('canvas-main');
+    
+    cv.onpointerdown = e => {
+        state.pointers.set(e.pointerId, e);
+        if (state.pointers.size === 1) {
+            const p = getPos(e, cv); state.dragStart = p; state.mStart = {x:e.clientX, y:e.clientY};
+            if (state.activeTool === 'pan') { state.isPanning = true; state.viewStart = {...state.view}; }
+            else if (state.activeTool === 'line') { saveState(); const nl = {cx:p.x, cy:p.y, w:100, angle:0}; state.lines.push(nl); state.activeLine = nl; state.editingField = 'resize-line'; }
+            else if (state.activeTool === 'spot') { 
+                saveState();
+                const sx = cv.width / state.imgW;
+                const origins = state.lines.filter(l => getImageCanvasPos(l.cx, l.cy, sx, sx).cy > (state.imgH*sx)/2);
+                let tx = p.x, ty = p.y;
+                if (origins.length) {
+                    const o = origins.reduce((a,b) => Math.sqrt((p.x-a.cx)**2+(p.y-a.cy)**2) < Math.sqrt((p.x-b.cx)**2+(p.y-b.cy)**2) ? a : b);
+                    const oP = getImageCanvasPos(o.cx, o.cy, sx, sx);
+                    if (Math.abs(p.cy - oP.cy) < 100 * sx) {
+                        const icx = (state.imgW*sx)/2, icy = (state.imgH*sx)/2;
+                        const ca = Math.cos(-state.imageRotation), sa = Math.sin(-state.imageRotation);
+                        const rx = (p.cx - icx) * ca - (oP.cy - icy) * sa;
+                        const ry = (p.cx - icx) * sa + (oP.cy - icy) * ca;
+                        tx = (rx + icx) / sx; ty = (ry + icy) / sx;
+                    }
+                }
+                state.spottingMarks.push({x:tx, y:ty}); 
+            }
+            else if (state.activeTool === 'roi') { state.roiRect = {x:p.x, y:p.y, w:1, h:1}; }
+            else if (state.activeTool === 'rotate') { saveState(); state.isRotating = true; state.rotateStart = state.imageRotation; }
+        } else if (state.pointers.size === 2) {
+            const pts = Array.from(state.pointers.values());
+            state.initialPinchDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+            state.initialPinchZoom = state.view.zoom;
+            state.isPanning = false; // Disable single-finger pan during pinch
+        }
+        render();
+    };
+
+    window.onpointermove = e => {
+        if (!state.pointers.has(e.pointerId)) return;
+        state.pointers.set(e.pointerId, e);
+        
+        if (state.pointers.size === 1) {
+            if (!state.dragStart) return;
+            const p = getPos(e, cv);
+            if (state.isPanning) { 
+                state.view.dx = state.viewStart.dx+(e.clientX-state.mStart.x); 
+                state.view.dy = state.viewStart.dy+(e.clientY-state.mStart.y); 
+            }
+            else if (state.isRotating) { state.imageRotation = state.rotateStart + (e.clientX-state.mStart.x)*0.005; }
+            else if (state.editingField === 'resize-line') { state.activeLine.w = Math.abs(p.x - state.activeLine.cx) * 2; }
+            else if (state.roiRect) { state.roiRect.w = p.x-state.roiRect.x; state.roiRect.h = p.y-state.roiRect.y; }
+        } else if (state.pointers.size === 2) {
+            const pts = Array.from(state.pointers.values());
+            const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+            const ratio = dist / state.initialPinchDist;
+            
+            const midX = (pts[0].clientX + pts[1].clientX) / 2;
+            const midY = (pts[0].clientY + pts[1].clientY) / 2;
+            const rect = cv.getBoundingClientRect();
+            const rawX = (midX - rect.left) * (cv.width / rect.width);
+            const rawY = (midY - rect.top) * (cv.height / rect.height);
+            
+            const oldZ = state.view.zoom;
+            const newZ = state.initialPinchZoom * ratio;
+            
+            const imgX = (rawX - state.view.dx) / oldZ;
+            const imgY = (rawY - state.view.dy) / oldZ;
+            
+            state.view.zoom = newZ;
+            state.view.dx = rawX - imgX * newZ;
+            state.view.dy = rawY - imgY * newZ;
+        }
+        render();
+    };
+
+    window.onpointerup = e => {
+        state.pointers.delete(e.pointerId);
+        if (state.pointers.size === 0) {
+            if (state.roiRect && Math.abs(state.roiRect.w) > 5) applyCrop();
+            state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; state.roiRect = null; 
+        } else if (state.pointers.size === 1) {
+            // Reset drag start for the remaining pointer to prevent jumps
+            const remaining = state.pointers.values().next().value;
+            state.dragStart = getPos(remaining, cv);
+            state.mStart = {x:remaining.clientX, y:remaining.clientY};
+            state.viewStart = {...state.view};
+        }
+        render();
+    };
+
+    cv.onwheel = e => { 
+        e.preventDefault(); 
+        const d = e.deltaY > 0 ? 0.9 : 1.1;
+        const p = getPos(e, cv);
+        const oldZ = state.view.zoom;
+        const newZ = oldZ * d;
+        state.view.zoom = newZ;
+        state.view.dx = p.rawX - p.cx * newZ;
+        state.view.dy = p.rawY - p.cy * newZ;
+        render(); 
+    };
+
+    // UI Listeners
+    document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+    document.querySelectorAll('.tool-item').forEach(b => b.onclick = () => {
+        document.querySelectorAll('.tool-item').forEach(x => x.classList.remove('active'));
+        b.classList.add('active'); state.activeTool = b.dataset.tool;
+    });
+    $('landing-upload').onclick = () => $('file-input').click();
+    $('file-input').onchange = e => { if (e.target.files[0]) handleUpload(e.target.files[0]); };
+    $('btn-new').onclick = () => { if(confirm('New analysis?')) switchView('landing'); };
+    $('btn-reset-img').onclick = () => { if(confirm('Reset all?')) { state.lines=[]; state.spottingMarks=[]; state.lanes=[]; render(); } };
+    $('btn-undo').onclick = undo;
+    $('btn-find-lanes').onclick = findLanes;
+
+    // Sliders live update
+    if($('peak-sens')) $('peak-sens').oninput = e => $('val-sens').textContent = e.target.value;
+    if($('peak-res')) $('peak-res').oninput = e => $('val-res').textContent = e.target.value;
+}
+
+// --- Rest of the app (same as before) ---
 async function updateDensitograms(detectPeaks = false) {
   if (!state.lanes.length || !state.imgB64) return;
   try {
@@ -120,9 +269,9 @@ async function updateDensitograms(detectPeaks = false) {
       body: JSON.stringify({ 
         image: state.imgB64, lanes: state.lanes, 
         peak_detection: detectPeaks, 
-        peak_prominence: parseFloat($('peak-prominence').value), 
-        peak_distance: parseInt($('peak-distance').value), 
-        peak_threshold: parseFloat($('peak-threshold')?.value || 50),
+        peak_prominence: parseFloat($('peak-sens')?.value || 40), 
+        peak_distance: parseInt($('peak-res')?.value || 10), 
+        peak_threshold: 50,
         smooth_sigma: 1.5, polarity_mode: state.polarityMode
       })
     });
@@ -159,71 +308,6 @@ function findLanes() {
     updateDensitograms(true);
 }
 
-// --- Interaction (Canvas) ---
-function getPos(e, canvas) {
-  const rect = canvas.getBoundingClientRect();
-  const scX = (e.clientX - rect.left) * (canvas.width / rect.width);
-  const scY = (e.clientY - rect.top) * (canvas.height / rect.height);
-  const z = state.view.zoom;
-  let x = (scX - state.view.dx) / z; let y = (scY - state.view.dy) / z;
-  const sx = canvas.width / state.imgW;
-  const icx = (state.imgW*sx)/2, icy = (state.imgH*sx)/2;
-  const sa = Math.sin(-state.imageRotation), ca = Math.cos(-state.imageRotation);
-  const rx = (x-icx)*ca - (y-icy)*sa, ry = (x-icx)*sa + (y-icy)*ca;
-  return { x: (rx+icx)/sx, y: (ry+icy)/sx, cx: x, cy: y };
-}
-
-function getImageCanvasPos(x, y, sx, sy) {
-  const icx = (state.imgW*sx)/2, icy = (state.imgH*sy)/2;
-  const ca = Math.cos(state.imageRotation), sa = Math.sin(state.imageRotation);
-  return { cx: (x*sx-icx)*ca - (y*sy-icy)*sa + icx, cy: (x*sx-icx)*sa + (y*sy-icy)*ca + icy };
-}
-
-function attachListeners() {
-    const cv = $('canvas-main');
-    cv.onpointerdown = e => {
-        const p = getPos(e, cv); state.dragStart = p; state.mStart = {x:e.clientX, y:e.clientY};
-        if (state.activeTool === 'pan') { state.isPanning = true; state.viewStart = {...state.view}; }
-        else if (state.activeTool === 'line') { saveState(); const nl = {cx:p.x, cy:p.y, w:100, angle:0}; state.lines.push(nl); state.activeLine = nl; state.editingField = 'resize-line'; }
-        else if (state.activeTool === 'spot') { saveState(); state.spottingMarks.push({x:p.x, y:p.y}); }
-        else if (state.activeTool === 'roi') { state.roiRect = {x:p.x, y:p.y, w:1, h:1}; }
-        else if (state.activeTool === 'rotate') { saveState(); state.isRotating = true; state.rotateStart = state.imageRotation; }
-        render();
-    };
-
-    window.onpointermove = e => {
-        if (!state.dragStart) return; const p = getPos(e, cv);
-        if (state.isPanning) { state.view.dx = state.viewStart.dx+(e.clientX-state.mStart.x); state.view.dy = state.viewStart.dy+(e.clientY-state.mStart.y); }
-        else if (state.isRotating) { state.imageRotation = state.rotateStart + (e.clientX-state.mStart.x)*0.005; }
-        else if (state.editingField === 'resize-line') { state.activeLine.w = Math.abs(p.x - state.activeLine.cx) * 2; }
-        else if (state.roiRect) { state.roiRect.w = p.x-state.roiRect.x; state.roiRect.h = p.y-state.roiRect.y; }
-        render();
-    };
-
-    window.onpointerup = () => {
-        if (state.roiRect && Math.abs(state.roiRect.w) > 5) applyCrop();
-        state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; state.roiRect = null; render();
-    };
-
-    cv.onwheel = e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; state.view.zoom *= d; render(); };
-
-    // Tabs
-    document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
-    
-    // Tools
-    document.querySelectorAll('.tool-item').forEach(b => b.onclick = () => {
-        document.querySelectorAll('.tool-item').forEach(x => x.classList.remove('active'));
-        b.classList.add('active'); state.activeTool = b.dataset.tool;
-    });
-
-    // Upload
-    $('landing-upload').onclick = () => $('file-input').click();
-    $('file-input').onchange = e => { if (e.target.files[0]) handleUpload(e.target.files[0]); };
-    $('btn-new').onclick = () => switchView('landing');
-    $('btn-undo').onclick = undo;
-}
-
-// --- Image Handling ---
 function handleUpload(file) {
   const r = new FileReader(); r.onload = e => {
     const img = new Image(); img.onload = () => {
@@ -231,7 +315,6 @@ function handleUpload(file) {
       let w = img.width, h = img.height; const sc = Math.min(1, MAX/Math.max(w,h));
       c.width = w*sc; c.height = h*sc; c.getContext('2d').drawImage(img, 0,0,c.width,c.height);
       state.imgEl = c; state.imgW = c.width; state.imgH = c.height; state.imgB64 = c.toDataURL('image/jpeg', 0.85);
-      
       switchView('workspace');
       setTimeout(() => {
         handleResize();
@@ -245,11 +328,9 @@ function handleUpload(file) {
 }
 
 function handleResize() {
-  const cv = $('canvas-main');
-  const wrap = cv ? cv.parentElement : null;
+  const cv = $('canvas-main'); const wrap = cv ? cv.parentElement : null;
   if (!cv || !wrap || wrap.clientWidth === 0) return;
-  cv.width = wrap.clientWidth;
-  cv.height = wrap.clientHeight;
+  cv.width = wrap.clientWidth; cv.height = wrap.clientHeight;
 }
 
 function switchView(v) {
@@ -267,140 +348,50 @@ function switchTab(t) {
     if (t === 'tab-image') render();
 }
 
-// --- Densitogram Rendering & Interaction ---
 function renderProfiles() {
     const list = $('profile-display'); list.innerHTML = '';
     state.lanes.forEach(l => {
         const div = document.createElement('div'); div.className = 'profile-card';
-        div.style.background = '#161616'; div.style.padding = '10px'; div.style.borderRadius = '10px'; div.style.marginBottom = '10px';
         div.innerHTML = `<h4 style="margin:0 0 5px 0">Lane ${l.id}</h4><canvas id="chart-${l.id}" style="width:100%; height:180px; background:#000"></canvas>`;
         list.appendChild(div);
         setTimeout(() => drawChart($(`chart-${l.id}`), l), 0);
     });
 }
+
 function drawChart(cv, l) {
     if (!cv || !l.profile) return;
     cv.width = cv.clientWidth; cv.height = cv.clientHeight;
     const ctx = cv.getContext('2d'), p = l.profile.slice().reverse(), n = p.length;
     const max = Math.max(...p, 1), w = cv.width, h = cv.height;
-    
-    const PAD = 20;
-    const drawW = w - PAD * 2;
-    const drawH = h - PAD * 2;
-
-    // Line
+    const PAD = 20, drawW = w-PAD*2, drawH = h-PAD*2;
     ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.beginPath();
-    p.forEach((v, i) => {
-        const x = PAD + (i/(n-1))*drawW;
-        const y = h - PAD - (v/max)*drawH;
-        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    });
+    p.forEach((v, i) => { const x = PAD+(i/(n-1))*drawW, y = h-PAD-(v/max)*drawH; if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
     ctx.stroke();
-
-    // Peaks
-    (l.peaks || []).forEach((pk, i) => {
-        const x = PAD + (pk.idx/(n-1))*drawW;
-        const y = h - PAD - (pk.height/max)*drawH;
-        ctx.fillStyle = pk.manual ? '#e34c26' : '#f0883e';
-        ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '10px Inter'; ctx.textAlign = 'center';
-        ctx.fillText(pk.rf.toFixed(2), x, y-10);
+    (l.peaks || []).forEach(pk => {
+        const x = PAD+(pk.idx/(n-1))*drawW, y = h-PAD-(pk.height/max)*drawH;
+        ctx.fillStyle = pk.manual ? '#e34c26' : '#f0883e'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill();
     });
-
-    // Interaction
+    
     cv.onmousedown = e => {
-        const r = cv.getBoundingClientRect();
-        const mx = e.clientX - r.left;
-        let idx = Math.round(((mx - PAD) / drawW) * (n-1));
-        idx = Math.max(0, Math.min(n-1, idx));
-        
-        // Right click or long press to delete (simplified)
-        const hit = (l.peaks || []).find(pk => Math.abs(mx - (PAD + (pk.idx/(n-1))*drawW)) < 15);
-        if (e.button === 2 || state.peakMode === 'delete') {
-            if (hit) { l.peaks = l.peaks.filter(x => x !== hit); renderProfiles(); renderTable(); render(); }
-            return;
-        }
-
-        if (hit) {
-            state.isDraggingPeak = hit;
-            state.activeLane = l;
-        } else {
-            // Add Peak
-            const val = p[idx];
-            const rf = (1.05/1.10 - (1 - idx/(n-1))) / (1.05/1.10 - 0.05/1.10);
-            l.peaks.push({ idx, rf, height: val, area: val * 10, manual: true });
-            l.peaks.sort((a,b) => a.idx - b.idx);
-            renderProfiles(); renderTable(); render();
-        }
+        const r = cv.getBoundingClientRect(); const mx = e.clientX-r.left;
+        let idx = Math.round(((mx-PAD)/drawW)*(n-1)); idx = Math.max(0, Math.min(n-1, idx));
+        const hit = (l.peaks || []).find(pk => Math.abs(mx-(PAD+(pk.idx/(n-1))*drawW))<15);
+        if (e.button===2) { if (hit) { l.peaks = l.peaks.filter(x=>x!==hit); renderProfiles(); renderTable(); render(); } return; }
+        if (hit) { state.isDraggingPeak = hit; state.activeLane = l; }
+        else { const v = p[idx], rf = (1.05/1.1- (1-idx/(n-1)))/(1.05/1.1-0.05/1.1); l.peaks.push({idx, rf, height:v, area:v*10, manual:true}); l.peaks.sort((a,b)=>a.idx-b.idx); renderProfiles(); renderTable(); render(); }
     };
-
     cv.onmousemove = e => {
-        if (!state.isDraggingPeak) return;
-        const r = cv.getBoundingClientRect();
-        const mx = e.clientX - r.left;
-        let idx = Math.round(((mx - PAD) / drawW) * (n-1));
-        idx = Math.max(0, Math.min(n-1, idx));
-        state.isDraggingPeak.idx = idx;
-        state.isDraggingPeak.height = p[idx];
-        state.isDraggingPeak.rf = (1.05/1.10 - (1 - idx/(n-1))) / (1.05/1.10 - 0.05/1.10);
-        renderProfiles(); renderTable(); render();
+        if (!state.isDraggingPeak) return; const r = cv.getBoundingClientRect(); const mx = e.clientX-r.left;
+        let idx = Math.round(((mx-PAD)/drawW)*(n-1)); idx = Math.max(0, Math.min(n-1, idx));
+        state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = (1.05/1.1-(1-idx/(n-1)))/(1.05/1.1-0.05/1.1); renderProfiles(); renderTable(); render();
     };
-
-    cv.onmouseup = () => { state.isDraggingPeak = null; };
+    cv.onmouseup = () => state.isDraggingPeak = null;
     cv.oncontextmenu = e => e.preventDefault();
 }
 
 function renderTable() {
     const body = $('table-body'); body.innerHTML = '';
-    const calCurve = state.tableMode === 'area-cal' ? calculateCalibrationCurve() : null;
-    const mwCurve = state.tableMode === 'mw-cal' ? calculateMWCalibrationCurve() : null;
-
-    state.lanes.forEach(l => {
-        (l.peaks || []).forEach((pk, i) => {
-            const tr = document.createElement('tr');
-            let val = '-';
-            if (state.tableMode === 'area-cal' && calCurve) val = calCurve(pk.area).toFixed(2);
-            else if (state.tableMode === 'mw-cal' && mwCurve) val = mwCurve(pk.rf).toFixed(1);
-            
-            tr.innerHTML = `
-                <td>${l.id}.${i+1}</td>
-                <td>${pk.rf.toFixed(3)}</td>
-                <td>${pk.area.toFixed(0)}</td>
-                <td>${val}</td>
-            `;
-            body.appendChild(tr);
-        });
-    });
-}
-
-function calculateCalibrationCurve() {
-    const stds = [];
-    state.lanes.forEach(l => l.peaks.forEach(p => { if (p.calibrationValue) stds.push({x: p.area, y: p.calibrationValue}); }));
-    if (stds.length < 1) return null;
-    if (stds.length === 1) return x => x * (stds[0].y / stds[0].x);
-    // Linear regression
-    const n = stds.length;
-    let sx=0, sy=0, sxy=0, sxx=0;
-    stds.forEach(s => { sx+=s.x; sy+=s.y; sxy+=s.x*s.y; sxx+=s.x*s.x; });
-    const m = (n*sxy - sx*sy) / (n*sxx - sx*sx);
-    const b = (sy - m*sx) / n;
-    return x => Math.max(0, m*x + b);
-}
-
-function calculateMWCalibrationCurve() {
-    const stds = [];
-    state.lanes.forEach(l => l.peaks.forEach(p => { if (p.mwValue) stds.push({x: p.rf, y: Math.log10(p.mwValue)}); }));
-    if (stds.length < 2) return null;
-    stds.sort((a,b) => a.x - b.x);
-    return rf => {
-        for (let i=0; i<stds.length-1; i++) {
-            if (rf >= stds[i].x && rf <= stds[i+1].x) {
-                const m = (stds[i+1].y - stds[i].y) / (stds[i+1].x - stds[i].x);
-                return Math.pow(10, stds[i].y + m*(rf - stds[i].x));
-            }
-        }
-        return null;
-    };
+    state.lanes.forEach(l => { l.peaks.forEach((pk, i) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${l.id}.${i+1}</td><td>${pk.rf.toFixed(3)}</td><td>${pk.area.toFixed(0)}</td><td>-</td>`; body.appendChild(tr); }); });
 }
 
 function saveState() {
@@ -413,29 +404,19 @@ function applyCrop() {
     const r = state.roiRect; const x = r.w>0?r.x:r.x+r.w, y = r.h>0?r.y:r.y+r.h, w = Math.abs(r.w), h = Math.abs(r.h);
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     c.getContext('2d').drawImage(state.imgEl, x,y,w,h, 0,0,w,h);
-    handleUpload({ name: 'cropped.jpg' }); // Fake file object to reuse logic
+    handleUpload({ name: 'cropped.jpg' }); 
 }
 
 function dbg(msg) {
-    const el = $('debug-overlay');
-    if (!el) return;
+    const el = $('debug-overlay'); if (!el) return;
     el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
-    el.scrollTop = el.scrollHeight;
-    console.log('[DEBUG]', msg);
+    el.scrollTop = el.scrollHeight; console.log('[DEBUG]', msg);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    init();
+    const cv = $('canvas-main');
+    if (cv) { handleResize(); state.ctx = cv.getContext('2d'); }
     attachListeners();
     window.addEventListener('resize', handleResize);
     switchView('landing');
 });
-
-function init() {
-    dbg('System Boot...');
-    const cv = $('canvas-main');
-    if (cv) {
-        handleResize();
-        state.ctx = cv.getContext('2d');
-    }
-}
