@@ -22,9 +22,9 @@ const state = {
     
     // Settings
     settings: {
-        peakProminence: 60,
-        peakDistance: 5,
-        peakThreshold: 30
+        peakProminence: 20,
+        peakDistance: 8,
+        peakThreshold: 40
     }
 };
 
@@ -64,9 +64,10 @@ function switchView(viewId) {
     state.view = viewId;
     if (viewId === 'workspace') {
         $('view-landing').classList.remove('active');
-        // Default to Image Tab
         switchTab('tab-image');
     } else {
+        // Deactivate all workspace tabs
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-landing').classList.add('active');
     }
 }
@@ -444,18 +445,27 @@ function render() {
         ctx.strokeStyle = 'rgba(88,166,255,0.3)'; ctx.lineWidth = 1/state.zoom;
         ctx.strokeRect(l.cx - l.w/2, l.cy - l.h/2, l.w, l.h);
         // Draw Bands
-        if (l.peaks) {
             l.peaks.forEach(p => {
-                const fy = l.cy - l.h/2; // Top of lane
-                const oy = l.cy + l.h/2; // Bottom of lane
-                // Rf = (OriginY - PeakY) / (OriginY - FrontY)
-                // PeakY = OriginY - Rf * (OriginY - FrontY)
+                const fy = l.cy - l.h/2; // Top of lane (Front)
+                const oy = l.cy + l.h/2; // Bottom of lane (Origin)
+                
+                // PeakY: Rf 0.0 is Origin, Rf 1.0 is Front.
+                // But in canvas, Origin is bottom (higher Y), Front is top (lower Y).
                 const py = oy - p.rf * (oy - fy);
-                ctx.strokeStyle = 'rgba(240, 136, 62, 0.8)';
-                ctx.lineWidth = 2/state.zoom; ctx.beginPath();
-                ctx.moveTo(l.cx - l.w/2.5, py); ctx.lineTo(l.cx + l.w/2.5, py); ctx.stroke();
+                
+                ctx.strokeStyle = '#f0883e';
+                ctx.lineWidth = 3/state.zoom;
+                ctx.beginPath();
+                ctx.moveTo(l.cx - l.w/2 + 2/state.zoom, py);
+                ctx.lineTo(l.cx + l.w/2 - 2/state.zoom, py);
+                ctx.stroke();
+                
+                // RF Label
+                ctx.fillStyle = '#f0883e';
+                ctx.font = `bold ${8/state.zoom}px Inter`;
+                ctx.textAlign = 'right';
+                ctx.fillText(p.rf.toFixed(2), l.cx - l.w/2 - 2/state.zoom, py + 3/state.zoom);
             });
-        }
     });
 
     if (state.roiRect) {
