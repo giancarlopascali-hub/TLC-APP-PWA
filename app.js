@@ -22,7 +22,7 @@ function render() {
   const canvas = $('canvas-main'); if (!state.imgEl || !canvas) return;
   const ctx = canvas.getContext('2d');
   if (canvas.width === 0 || canvas.height === 0) handleResize();
-  dbg(`Rendering... Z:${state.view.zoom.toFixed(2)} DX:${state.view.dx.toFixed(0)}`);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   ctx.save(); ctx.translate(state.view.dx, state.view.dy); ctx.scale(state.view.zoom, state.view.zoom);
 
