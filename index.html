@@ -58,13 +58,16 @@
 
             <!-- Results View (Profile/Table) -->
             <section id="view-results" class="view">
-                <div style="flex:1; overflow-y:auto; padding:20px;">
-                    <div id="results-content">
-                        <!-- Dynamic Content -->
-                    </div>
+                <div class="results-tabs">
+                    <button class="res-tab active" data-res-target="res-profiles">📈 Profiles</button>
+                    <button class="res-tab" data-res-target="res-table">📋 Table</button>
+                </div>
+                <div style="flex:1; overflow-y:auto;">
+                    <div id="res-profiles" class="res-content active" style="padding:15px;"></div>
+                    <div id="res-table" class="res-content" style="padding:15px;"></div>
                 </div>
                 <div class="toolbar">
-                    <button id="btn-back-to-canvas" class="btn btn-secondary" style="flex:1; margin:10px;">⬅️ Edit Canvas</button>
+                    <button id="btn-back-to-canvas" class="btn btn-secondary" style="flex:1; margin:10px;">⬅️ Edit Plate</button>
                 </div>
             </section>
         </main>

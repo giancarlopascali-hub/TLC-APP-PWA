@@ -109,12 +109,61 @@ function attachEventListeners() {
 
     $('btn-analyze').onclick = runAnalysis;
 
+    // Tab Logic
+    document.querySelectorAll('.res-tab').forEach(tab => {
+        tab.onclick = () => {
+            document.querySelectorAll('.res-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.res-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            $(tab.dataset.resTarget).classList.add('active');
+        };
+    });
+
     // Canvas Events
     const cv = $('canvas-main');
     cv.addEventListener('pointerdown', onPointerDown);
     cv.addEventListener('pointermove', onPointerMove);
     cv.addEventListener('pointerup', onPointerUp);
+    cv.addEventListener('pointerleave', onPointerUp);
     cv.addEventListener('wheel', onWheel, { passive: false });
+    
+    // Pinch to Zoom
+    cv.addEventListener('touchstart', onTouchStart, { passive: false });
+    cv.addEventListener('touchmove', onTouchMove, { passive: false });
+}
+
+let lastPinchDist = 0;
+function onTouchStart(e) {
+    if (e.touches.length === 2) {
+        lastPinchDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+    }
+}
+function onTouchMove(e) {
+    if (e.touches.length === 2) {
+        e.preventDefault();
+        const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        const delta = dist / lastPinchDist;
+        const p = { 
+            rawX: (e.touches[0].pageX + e.touches[1].pageX) / 2,
+            rawY: (e.touches[0].pageY + e.touches[1].pageY) / 2
+        };
+        const rect = $('canvas-main').getBoundingClientRect();
+        p.rawX -= rect.left; p.rawY -= rect.top;
+        
+        const canvasP = {
+            x: (p.rawX - state.panX) / state.zoom,
+            y: (p.rawY - state.panY) / state.zoom
+        };
+
+        const newZoom = state.zoom * delta;
+        if (newZoom > 0.1 && newZoom < 20) {
+            state.panX = p.rawX - canvasP.x * newZoom;
+            state.panY = p.rawY - canvasP.y * newZoom;
+            state.zoom = newZoom;
+            render();
+        }
+        lastPinchDist = dist;
+    }
 }
 
 function handleResize() {
@@ -223,27 +272,52 @@ function render() {
     renderMarks(ctx);
     renderLanes(ctx);
     
+    // Draw ROI
+    if (state.roiRect) {
+        ctx.strokeStyle = '#f0883e';
+        ctx.setLineDash([5 / state.zoom, 5 / state.zoom]);
+        ctx.lineWidth = 2 / state.zoom;
+        ctx.strokeRect(state.roiRect.x, state.roiRect.y, state.roiRect.w, state.roiRect.h);
+        ctx.fillStyle = 'rgba(240, 136, 62, 0.1)';
+        ctx.fillRect(state.roiRect.x, state.roiRect.y, state.roiRect.w, state.roiRect.h);
+        ctx.setLineDash([]);
+    }
+    
     ctx.restore();
 }
 
 function renderLines(ctx) {
-    state.lines.forEach(l => {
+    const lines = [...state.lines].sort((a,b) => a.cy - b.cy);
+    lines.forEach((l, idx) => {
+        const isS = state.activeLine === l;
+        const isOrigin = lines.length > 1 && idx === lines.length - 1;
+        const isFront = lines.length > 1 && idx === 0;
+        
         ctx.save();
         ctx.translate(l.cx, l.cy);
         ctx.rotate(l.angle || 0);
-        ctx.strokeStyle = state.activeLine === l ? '#ffc107' : '#58a6ff';
+        
+        ctx.strokeStyle = isS ? '#ffc107' : (isOrigin ? '#f0883e' : (isFront ? '#238636' : '#58a6ff'));
         ctx.lineWidth = 4 / state.zoom;
         ctx.beginPath();
         ctx.moveTo(-l.w / 2, 0);
         ctx.lineTo(l.w / 2, 0);
         ctx.stroke();
+        
+        // Label
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.font = `bold ${14/state.zoom}px Inter`;
+        ctx.textAlign = 'center';
+        let label = lines.length > 1 ? (isOrigin ? "ORIGIN" : (isFront ? "FRONT" : `LINE ${idx+1}`)) : "LINE";
+        ctx.fillText(label, 0, -10/state.zoom);
+        
         ctx.restore();
     });
 }
 
 function renderMarks(ctx) {
     state.marks.forEach(m => {
-        ctx.fillStyle = state.activeMark === m ? '#ffc107' : '#f0883e';
+        ctx.fillStyle = state.activeMark === m ? '#ffc107' : '#58a6ff';
         ctx.beginPath();
         ctx.arc(m.x, m.y, 6 / state.zoom, 0, Math.PI * 2);
         ctx.fill();
@@ -281,6 +355,8 @@ function getCanvasPoint(e) {
 }
 
 function onPointerDown(e) {
+    if (e.pointerType === 'touch' && e.isPrimary === false) return; // Ignore secondary touches
+    
     state.isDragging = true;
     state.lastMouse = { x: e.clientX, y: e.clientY };
     const p = getCanvasPoint(e);
@@ -290,7 +366,18 @@ function onPointerDown(e) {
         state.lines.push(newLine);
         state.activeLine = newLine;
     } else if (state.activeTool === 'spotting') {
-        state.marks.push({ x: p.x, y: p.y });
+        // Snap to nearest line
+        let targetY = p.y;
+        if (state.lines.length > 0) {
+            const nearestLine = state.lines.reduce((prev, curr) => 
+                Math.abs(curr.cy - p.y) < Math.abs(prev.cy - p.y) ? curr : prev
+            );
+            if (Math.abs(nearestLine.cy - p.y) < 50) targetY = nearestLine.cy;
+        }
+        state.marks.push({ x: p.x, y: targetY });
+    } else if (state.activeTool === 'roi') {
+        state.roiStart = p;
+        state.roiRect = { x: p.x, y: p.y, w: 0, h: 0 };
     }
     
     render();
@@ -298,17 +385,22 @@ function onPointerDown(e) {
 
 function onPointerMove(e) {
     if (!state.isDragging) return;
-    
-    const dx = e.clientX - state.lastMouse.x;
-    const dy = e.clientY - state.lastMouse.y;
+    if (e.pointerType === 'touch' && e.isPrimary === false) return;
+
+    const dx = (e.clientX - state.lastMouse.x);
+    const dy = (e.clientY - state.lastMouse.y);
     state.lastMouse = { x: e.clientX, y: e.clientY };
     
+    const p = getCanvasPoint(e);
+
     if (state.activeTool === 'pan') {
         state.panX += dx;
         state.panY += dy;
     } else if (state.activeTool === 'line' && state.activeLine) {
-        const p = getCanvasPoint(e);
         state.activeLine.w = Math.abs(p.x - state.activeLine.cx) * 2;
+    } else if (state.activeTool === 'roi' && state.roiRect) {
+        state.roiRect.w = p.x - state.roiStart.x;
+        state.roiRect.h = p.y - state.roiStart.y;
     }
     
     render();
@@ -316,7 +408,45 @@ function onPointerMove(e) {
 
 function onPointerUp() {
     state.isDragging = false;
+    if (state.activeTool === 'roi' && state.roiRect) {
+        // Perform Crop
+        if (Math.abs(state.roiRect.w) > 10 && Math.abs(state.roiRect.h) > 10) {
+            cropImage(state.roiRect);
+        }
+        state.roiRect = null;
+    }
     state.activeLine = null;
+    render();
+}
+
+function cropImage(rect) {
+    dbg('Cropping Image...');
+    const x = rect.w > 0 ? rect.x : rect.x + rect.w;
+    const y = rect.h > 0 ? rect.y : rect.y + rect.h;
+    const w = Math.abs(rect.w);
+    const h = Math.abs(rect.h);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(state.img, x, y, w, h, 0, 0, w, h);
+    
+    state.img = canvas;
+    state.imgW = w;
+    state.imgH = h;
+    state.imgB64 = canvas.toDataURL('image/jpeg', 0.85);
+    state.lines = [];
+    state.marks = [];
+    state.lanes = [];
+    
+    handleResize();
+    const scale = Math.min($('canvas-main').width / w, $('canvas-main').height / h) * 0.9;
+    state.zoom = scale || 1;
+    state.panX = ($('canvas-main').width - w * state.zoom) / 2;
+    state.panY = ($('canvas-main').height - h * state.zoom) / 2;
+    
+    render();
 }
 
 function onWheel(e) {
@@ -394,43 +524,92 @@ async function runAnalysis() {
 }
 
 function showResults() {
-    const container = $('results-content');
-    container.innerHTML = `<h2 class="hero-title" style="text-align:left">Analysis Results</h2>`;
+    switchView('results');
     
+    const profilesContainer = $('res-profiles');
+    const tableContainer = $('res-table');
+    
+    profilesContainer.innerHTML = '';
+    tableContainer.innerHTML = '';
+
+    // Create Table
+    let tableHtml = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Lane.Peak</th>
+                    <th>Rf</th>
+                    <th>Height</th>
+                    <th>Area</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
     state.results.forEach(res => {
+        // Render Profile Mini-Chart
         const card = document.createElement('div');
         card.className = 'hero-card';
         card.style.maxWidth = 'none';
         card.style.marginBottom = '20px';
-        card.style.textAlign = 'left';
+        card.style.padding = '15px';
         
-        let peaksHtml = res.peaks.map(p => `
-            <tr>
-                <td>${p.rf.toFixed(3)}</td>
-                <td>${p.height.toFixed(1)}</td>
-                <td>${p.area.toFixed(0)}</td>
-            </tr>
-        `).join('');
-        
-        card.innerHTML = `
-            <h3>Lane ${res.id}</h3>
-            <div style="overflow-x:auto">
-                <table style="width:100%; border-collapse:collapse; margin-top:10px;">
-                    <thead>
-                        <tr style="border-bottom:1px solid var(--glass-border)">
-                            <th style="padding:8px">Rf</th>
-                            <th style="padding:8px">Height</th>
-                            <th style="padding:8px">Area</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${peaksHtml || '<tr><td colspan="3">No peaks detected</td></tr>'}
-                    </tbody>
-                </table>
-            </div>
-        `;
-        container.appendChild(card);
+        const canvas = document.createElement('canvas');
+        canvas.width = profilesContainer.clientWidth - 60;
+        canvas.height = 120;
+        card.innerHTML = `<h3>Lane ${res.id} - Densitogram</h3>`;
+        card.appendChild(canvas);
+        drawProfile(canvas, res.profile, res.peaks);
+        profilesContainer.appendChild(card);
+
+        // Add to Table
+        res.peaks.forEach((p, idx) => {
+            tableHtml += `
+                <tr>
+                    <td>${res.id}.${idx + 1}</td>
+                    <td>${p.rf.toFixed(3)}</td>
+                    <td>${p.height.toFixed(1)}</td>
+                    <td>${p.area.toFixed(0)}</td>
+                </tr>
+            `;
+        });
     });
+
+    tableHtml += `</tbody></table>`;
+    tableContainer.innerHTML = tableHtml;
+}
+
+function drawProfile(canvas, profile, peaks) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
     
-    switchView('results');
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    const max = Math.max(...profile, 1);
+    const step = w / profile.length;
+    
+    profile.forEach((v, i) => {
+        const x = i * step;
+        const y = h - (v / max) * (h - 20) - 10;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Peaks
+    peaks.forEach(p => {
+        const x = p.idx * step;
+        const y = h - (profile[p.idx] / max) * (h - 20) - 10;
+        ctx.fillStyle = '#f0883e';
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px Inter';
+        ctx.fillText(`Rf ${p.rf.toFixed(2)}`, x - 15, y - 10);
+    });
 }

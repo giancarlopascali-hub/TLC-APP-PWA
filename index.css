@@ -181,6 +181,55 @@ main {
     background: rgba(255, 255, 255, 0.1);
 }
 
+/* --- Results Tabs --- */
+.results-tabs {
+    display: flex;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.res-tab {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.res-tab.active {
+    color: var(--accent-color);
+    border-bottom: 2px solid var(--accent-color);
+}
+
+.res-content {
+    display: none;
+}
+
+.res-content.active {
+    display: block;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.data-table th {
+    text-align: left;
+    padding: 10px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.data-table td {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
 /* --- Workspace View --- */
 #view-workspace {
     background: #000;
