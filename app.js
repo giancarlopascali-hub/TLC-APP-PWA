@@ -20,8 +20,9 @@ const $ = id => document.getElementById(id);
 // --- Core Rendering ---
 function render() {
   const canvas = $('canvas-main'); if (!state.imgEl || !canvas) return;
-  const wrap = canvas.parentElement; canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
   const ctx = canvas.getContext('2d');
+  if (canvas.width === 0 || canvas.height === 0) handleResize();
+  dbg(`Rendering... Z:${state.view.zoom.toFixed(2)} DX:${state.view.dx.toFixed(0)}`);
   
   ctx.save(); ctx.translate(state.view.dx, state.view.dy); ctx.scale(state.view.zoom, state.view.zoom);
 
@@ -47,7 +48,7 @@ function render() {
     const isOrigin = pos.cy > (state.imgH*sy)/2;
     ctx.save(); ctx.translate(l.cx*sx, l.cy*sy); ctx.rotate((l.angle || 0) - state.imageRotation);
     ctx.strokeStyle = isS ? '#ffc107' : (isOrigin ? '#f0883e' : '#238636');
-    ctx.lineWidth = 4/state.view.zoom; ctx.beginPath(); moveTo(-l.w*sx/2, 0); ctx.lineTo(l.w*sx/2, 0); ctx.stroke();
+    ctx.lineWidth = 4/state.view.zoom; ctx.beginPath(); ctx.moveTo(-l.w*sx/2, 0); ctx.lineTo(l.w*sx/2, 0); ctx.stroke();
     ctx.fillStyle = ctx.strokeStyle; ctx.font = `bold ${12/state.view.zoom}px Inter`;
     ctx.fillText(isOrigin ? "ORIGIN" : "FRONT", -l.w*sx/2, -8/state.view.zoom);
     ctx.restore();
@@ -180,7 +181,7 @@ function getImageCanvasPos(x, y, sx, sy) {
 
 function attachListeners() {
     const cv = $('canvas-main');
-    cv.onmousedown = e => {
+    cv.onpointerdown = e => {
         const p = getPos(e, cv); state.dragStart = p; state.mStart = {x:e.clientX, y:e.clientY};
         if (state.activeTool === 'pan') { state.isPanning = true; state.viewStart = {...state.view}; }
         else if (state.activeTool === 'line') { saveState(); const nl = {cx:p.x, cy:p.y, w:100, angle:0}; state.lines.push(nl); state.activeLine = nl; state.editingField = 'resize-line'; }
@@ -190,7 +191,7 @@ function attachListeners() {
         render();
     };
 
-    window.onmousemove = e => {
+    window.onpointermove = e => {
         if (!state.dragStart) return; const p = getPos(e, cv);
         if (state.isPanning) { state.view.dx = state.viewStart.dx+(e.clientX-state.mStart.x); state.view.dy = state.viewStart.dy+(e.clientY-state.mStart.y); }
         else if (state.isRotating) { state.imageRotation = state.rotateStart + (e.clientX-state.mStart.x)*0.005; }
@@ -199,7 +200,7 @@ function attachListeners() {
         render();
     };
 
-    window.onmouseup = () => {
+    window.onpointerup = () => {
         if (state.roiRect && Math.abs(state.roiRect.w) > 5) applyCrop();
         state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; state.roiRect = null; render();
     };
@@ -415,10 +416,26 @@ function applyCrop() {
     handleUpload({ name: 'cropped.jpg' }); // Fake file object to reuse logic
 }
 
-function dbg(m) { console.log(m); }
+function dbg(msg) {
+    const el = $('debug-overlay');
+    if (!el) return;
+    el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+    el.scrollTop = el.scrollHeight;
+    console.log('[DEBUG]', msg);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
+    init();
     attachListeners();
     window.addEventListener('resize', handleResize);
     switchView('landing');
 });
+
+function init() {
+    dbg('System Boot...');
+    const cv = $('canvas-main');
+    if (cv) {
+        handleResize();
+        state.ctx = cv.getContext('2d');
+    }
+}
