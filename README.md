@@ -1,3 +1,12 @@
+---
+title: TLC Analyzer Pro
+emoji: 🔬
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # TLC Analyzer Pro (V5.0)
 
 Professional Quantitative Thin Layer Chromatography Analysis for Mobile and Desktop.
