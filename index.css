@@ -1,6 +1,6 @@
 :root {
     --bg-color: #0d1117;
-    --panel-bg: rgba(22, 27, 34, 0.8);
+    --panel-bg: rgba(22, 27, 34, 0.9);
     --accent-color: #58a6ff;
     --accent-glow: rgba(88, 166, 255, 0.3);
     --text-primary: #c9d1d9;
@@ -184,24 +184,30 @@ main {
 /* --- Results Tabs --- */
 .results-tabs {
     display: flex;
-    background: var(--panel-bg);
-    border-bottom: 1px solid var(--glass-border);
+    background: #161b22;
+    border-bottom: 2px solid var(--accent-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .res-tab {
     flex: 1;
-    padding: 15px;
+    padding: 18px 10px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
-    font-weight: 600;
+    font-weight: 800;
     font-size: 0.9rem;
     cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s;
 }
 
 .res-tab.active {
-    color: var(--accent-color);
-    border-bottom: 2px solid var(--accent-color);
+    color: #fff;
+    background: var(--accent-color);
 }
 
 .res-content {
@@ -239,6 +245,8 @@ main {
     flex: 1;
     position: relative;
     overflow: hidden;
+    min-height: 400px;
+    background: #000;
 }
 
 canvas {
@@ -293,8 +301,7 @@ canvas {
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--panel-bg);
-    backdrop-filter: blur(25px);
+    background: #161b22;
     border-top: 1px solid var(--glass-border);
     border-radius: 24px 24px 0 0;
     transform: translateY(100%);
@@ -322,7 +329,7 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.7);
     display: none;
     z-index: 150;
 }
@@ -331,13 +338,31 @@ canvas {
     display: block;
 }
 
+/* --- Settings Groups --- */
+.setting-group {
+    margin-bottom: 25px;
+}
+
+.setting-group label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.setting-group input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent-color);
+}
+
 /* --- Debug Overlay --- */
 #debug-overlay {
     position: fixed;
-    bottom: 80px;
+    bottom: 100px;
     left: 10px;
     right: 10px;
-    max-height: 150px;
+    max-height: 100px;
     overflow-y: auto;
     background: rgba(0,0,0,0.8);
     border: 1px solid #0f0;

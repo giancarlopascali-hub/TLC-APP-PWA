@@ -24,7 +24,17 @@ const state = {
     // Selection
     activeLine: null,
     activeMark: null,
-    activeLane: null
+    activeLane: null,
+    
+    // History
+    history: [],
+    
+    // Settings
+    settings: {
+        peakProminence: 60,
+        peakDistance: 5,
+        peakThreshold: 30
+    }
 };
 
 // --- Initialization ---
@@ -55,6 +65,9 @@ function initApp() {
     const canvas = $('canvas-main');
     if (canvas) {
         state.ctx = canvas.getContext('2d');
+        // PC fix: force initial layout
+        canvas.width = canvas.parentElement.clientWidth || window.innerWidth;
+        canvas.height = canvas.parentElement.clientHeight || 400;
     }
 }
 
@@ -108,6 +121,9 @@ function attachEventListeners() {
     });
 
     $('btn-analyze').onclick = runAnalysis;
+    $('btn-undo').onclick = undo;
+    $('btn-settings').onclick = toggleSettings;
+    $('overlay').onclick = toggleSettings;
 
     // Tab Logic
     document.querySelectorAll('.res-tab').forEach(tab => {
@@ -173,6 +189,7 @@ function handleResize() {
     
     canvas.width = container.clientWidth;
     canvas.height = container.clientHeight;
+    state.ctx = canvas.getContext('2d');
     
     if (state.img) render();
 }
@@ -205,6 +222,8 @@ async function handleImageUpload(file) {
 function processImage(img) {
     dbg(`Processing image... ${img.width}x${img.height}`);
     try {
+        pushHistory(); // Save landing state
+        
         // Scaling for performance
         const MAX_DIM = 1200;
         let w = img.width;
@@ -229,23 +248,29 @@ function processImage(img) {
         
         // Switch view FIRST
         switchView('workspace');
-        handleResize(); 
         
-        const cv = $('canvas-main');
-        if (!cv) throw new Error('Canvas not found');
+        // Wait a frame for the layout to settle (Crucial for PC browsers)
+        requestAnimationFrame(() => {
+            handleResize(); 
+            
+            const cv = $('canvas-main');
+            // Force context check
+            state.ctx = cv.getContext('2d');
+            
+            const targetW = cv.width || cv.parentElement.clientWidth || window.innerWidth;
+            const targetH = cv.height || cv.parentElement.clientHeight || 400;
 
-        if (cv.width === 0 || cv.height === 0) {
-            cv.width = window.innerWidth;
-            cv.height = window.innerHeight - 130; 
-        }
+            cv.width = targetW;
+            cv.height = targetH;
 
-        const scale = Math.min(cv.width / w, cv.height / h) * 0.9;
-        state.zoom = scale || 1;
-        state.panX = (cv.width - w * state.zoom) / 2;
-        state.panY = (cv.height - h * state.zoom) / 2;
-        
-        dbg('Image Ready. Rendering...');
-        render();
+            const scale = Math.min(targetW / w, targetH / h) * 0.9;
+            state.zoom = scale || 1;
+            state.panX = (targetW - w * state.zoom) / 2;
+            state.panY = (targetH - h * state.zoom) / 2;
+            
+            dbg('Image Ready. Rendering...');
+            render();
+        });
     } catch (err) {
         dbg(`Process Error: ${err.message}`);
         alert(`Error processing image: ${err.message}`);
@@ -357,6 +382,7 @@ function getCanvasPoint(e) {
 function onPointerDown(e) {
     if (e.pointerType === 'touch' && e.isPrimary === false) return; // Ignore secondary touches
     
+    pushHistory();
     state.isDragging = true;
     state.lastMouse = { x: e.clientX, y: e.clientY };
     const p = getCanvasPoint(e);
@@ -508,8 +534,9 @@ async function runAnalysis() {
                 image: state.imgB64,
                 lanes: state.lanes,
                 peak_detection: true,
-                peak_prominence: 40,
-                peak_distance: 10
+                peak_prominence: state.settings.peakProminence,
+                peak_distance: state.settings.peakDistance,
+                peak_threshold: state.settings.peakThreshold
             })
         });
         
@@ -521,6 +548,80 @@ async function runAnalysis() {
     } catch (err) {
         dbg(`Analysis Error: ${err.message}`);
     }
+}
+
+// --- History & Undo ---
+function pushHistory() {
+    const snap = {
+        lines: JSON.parse(JSON.stringify(state.lines)),
+        marks: JSON.parse(JSON.stringify(state.marks)),
+        img: state.img,
+        imgW: state.imgW,
+        imgH: state.imgH,
+        imgB64: state.imgB64,
+        zoom: state.zoom,
+        panX: state.panX,
+        panY: state.panY
+    };
+    state.history.push(snap);
+    if (state.history.length > 20) state.history.shift();
+}
+
+function undo() {
+    if (state.history.length === 0) return;
+    const snap = state.history.pop();
+    state.lines = snap.lines;
+    state.marks = snap.marks;
+    state.img = snap.img;
+    state.imgW = snap.imgW;
+    state.imgH = snap.imgH;
+    state.imgB64 = snap.imgB64;
+    state.zoom = snap.zoom;
+    state.panX = snap.panX;
+    state.panY = snap.panY;
+    render();
+    dbg('Undo performed');
+}
+
+// --- Settings ---
+function toggleSettings() {
+    const drawer = $('drawer');
+    const overlay = $('overlay');
+    if (drawer.classList.contains('open')) {
+        drawer.classList.remove('open');
+        overlay.classList.remove('active');
+    } else {
+        renderSettings();
+        drawer.classList.add('open');
+        overlay.classList.add('active');
+    }
+}
+
+function renderSettings() {
+    const content = $('drawer-content');
+    content.innerHTML = `
+        <h2 class="hero-title" style="font-size:1.4rem; margin-bottom:20px;">Analysis Settings</h2>
+        
+        <div class="setting-group">
+            <label>Sensitivity <span>${state.settings.peakProminence}</span></label>
+            <input type="range" min="1" max="80" value="${state.settings.peakProminence}" 
+                oninput="state.settings.peakProminence = parseInt(this.value); this.previousElementSibling.querySelector('span').innerText = this.value">
+        </div>
+        
+        <div class="setting-group">
+            <label>Resolution <span>${state.settings.peakDistance}</span></label>
+            <input type="range" min="1" max="100" value="${state.settings.peakDistance}" 
+                oninput="state.settings.peakDistance = parseInt(this.value); this.previousElementSibling.querySelector('span').innerText = this.value">
+        </div>
+
+        <div class="setting-group">
+            <label>Peak Width % <span>${state.settings.peakThreshold}</span></label>
+            <input type="range" min="5" max="95" value="${state.settings.peakThreshold}" 
+                oninput="state.settings.peakThreshold = parseInt(this.value); this.previousElementSibling.querySelector('span').innerText = this.value">
+        </div>
+
+        <button class="btn btn-primary" onclick="toggleSettings(); runAnalysis();" style="width:100%">Apply & Re-Run</button>
+    `;
 }
 
 function showResults() {
