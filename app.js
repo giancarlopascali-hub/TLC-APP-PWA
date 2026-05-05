@@ -32,15 +32,20 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
+let isInit = false;
 function initApp() {
+    if (isInit) return;
+    isInit = true;
     dbg('App Initialized');
 
-    // Register Service Worker
+    // Register Service Worker disabled for debugging
+    /*
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
             .then(reg => dbg('SW Registered'))
             .catch(err => dbg('SW Register Fail: ' + err.message));
     }
+    */
 
     attachEventListeners();
     handleResize();
@@ -78,8 +83,18 @@ function attachEventListeners() {
     $('btn-camera').onclick = () => $('camera-input').click();
     $('btn-upload-trigger').onclick = () => $('file-input').click();
     
-    $('file-input').onchange = (e) => handleImageUpload(e.target.files[0]);
-    $('camera-input').onchange = (e) => handleImageUpload(e.target.files[0]);
+    $('file-input').onchange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+        e.target.value = '';
+    };
+    $('camera-input').onchange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+        e.target.value = '';
+    };
     
     $('btn-back-to-canvas').onclick = () => switchView('workspace');
 
@@ -139,47 +154,53 @@ async function handleImageUpload(file) {
 }
 
 function processImage(img) {
-    // Scaling for performance
-    const MAX_DIM = 1200;
-    let w = img.width;
-    let h = img.height;
-    
-    if (w > MAX_DIM || h > MAX_DIM) {
-        const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
-        w *= ratio;
-        h *= ratio;
-    }
-    
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = w;
-    offCanvas.height = h;
-    const ctx = offCanvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, w, h);
-    
-    state.img = offCanvas;
-    state.imgW = w;
-    state.imgH = h;
-    state.imgB64 = offCanvas.toDataURL('image/jpeg', 0.85);
-    
-    // Switch view FIRST so canvas gets non-zero dimensions
-    switchView('workspace');
-    handleResize(); 
-    
-    // Center image in view
-    const cv = $('canvas-main');
-    if (cv.width === 0 || cv.height === 0) {
-        // Fallback for edge cases
-        cv.width = window.innerWidth;
-        cv.height = window.innerHeight - 130; 
-    }
+    dbg(`Processing image... ${img.width}x${img.height}`);
+    try {
+        // Scaling for performance
+        const MAX_DIM = 1200;
+        let w = img.width;
+        let h = img.height;
+        
+        if (w > MAX_DIM || h > MAX_DIM) {
+            const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+            w *= ratio;
+            h *= ratio;
+        }
+        
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = w;
+        offCanvas.height = h;
+        const ctx = offCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        
+        state.img = offCanvas;
+        state.imgW = w;
+        state.imgH = h;
+        state.imgB64 = offCanvas.toDataURL('image/jpeg', 0.85);
+        
+        // Switch view FIRST
+        switchView('workspace');
+        handleResize(); 
+        
+        const cv = $('canvas-main');
+        if (!cv) throw new Error('Canvas not found');
 
-    const scale = Math.min(cv.width / w, cv.height / h) * 0.9;
-    state.zoom = scale || 1;
-    state.panX = (cv.width - w * state.zoom) / 2;
-    state.panY = (cv.height - h * state.zoom) / 2;
-    
-    dbg('Image Processed and Ready');
-    render();
+        if (cv.width === 0 || cv.height === 0) {
+            cv.width = window.innerWidth;
+            cv.height = window.innerHeight - 130; 
+        }
+
+        const scale = Math.min(cv.width / w, cv.height / h) * 0.9;
+        state.zoom = scale || 1;
+        state.panX = (cv.width - w * state.zoom) / 2;
+        state.panY = (cv.height - h * state.zoom) / 2;
+        
+        dbg('Image Ready. Rendering...');
+        render();
+    } catch (err) {
+        dbg(`Process Error: ${err.message}`);
+        alert(`Error processing image: ${err.message}`);
+    }
 }
 
 // --- Rendering ---
