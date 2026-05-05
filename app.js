@@ -161,15 +161,25 @@ function processImage(img) {
     state.imgH = h;
     state.imgB64 = offCanvas.toDataURL('image/jpeg', 0.85);
     
+    // Switch view FIRST so canvas gets non-zero dimensions
+    switchView('workspace');
+    handleResize(); 
+    
     // Center image in view
     const cv = $('canvas-main');
+    if (cv.width === 0 || cv.height === 0) {
+        // Fallback for edge cases
+        cv.width = window.innerWidth;
+        cv.height = window.innerHeight - 130; 
+    }
+
     const scale = Math.min(cv.width / w, cv.height / h) * 0.9;
-    state.zoom = scale;
-    state.panX = (cv.width - w * scale) / 2;
-    state.panY = (cv.height - h * scale) / 2;
+    state.zoom = scale || 1;
+    state.panX = (cv.width - w * state.zoom) / 2;
+    state.panY = (cv.height - h * state.zoom) / 2;
     
     dbg('Image Processed and Ready');
-    switchView('workspace');
+    render();
 }
 
 // --- Rendering ---
