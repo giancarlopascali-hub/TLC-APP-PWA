@@ -162,7 +162,20 @@ function attachListeners() {
                 }
                 state.spottingMarks.push({x:tx, y:ty}); 
             }
-            // roi/crop tool removed
+            else if (state.activeTool === 'select') {
+                // Hit-test lanes (image-space rectangle check)
+                const hit = state.lanes.find(l => 
+                    Math.abs(p.x - l.cx) <= l.w / 2 && Math.abs(p.y - l.cy) <= l.h / 2
+                );
+                if (hit) {
+                    state.activeLane = (state.activeLane === hit) ? null : hit;
+                } else {
+                    // Tapped empty space — deselect
+                    state.activeLane = null;
+                }
+                renderProfiles();
+                renderTable();
+            }
             else if (state.activeTool === 'rotate') { saveState(); state.isRotating = true; state.rotateStart = state.imageRotation; }
         } else if (state.pointers.size === 2) {
             const pts = Array.from(state.pointers.values());
@@ -342,9 +355,11 @@ function findLanes() {
         });
         const laneH = Math.abs(p.o.cy - p.f.cy) * 1.1;
         const laneCY = (p.f.cy + p.o.cy) / 2;
-        // pairKey groups marks that share the same Origin/Front pair
-        const pairKey = `${p.f.cx.toFixed(0)}_${p.o.cx.toFixed(0)}`;
-        return { idx: i, m, laneCY, laneH, pairKey };
+        // pairKey: use Y positions to uniquely identify each Origin/Front pair
+        // (cx would be identical for lines spanning the same plate width)
+        const pairKey = `${p.f.cy.toFixed(1)}_${p.o.cy.toFixed(1)}`;
+        // Store pair ref so we can use line widths for single-mark fallback
+        return { idx: i, m, laneCY, laneH, pairKey, pair: p };
     });
 
     // Second pass: for each pair-group, sort by X and compute widths from gaps
@@ -363,8 +378,10 @@ function findLanes() {
         grp.forEach((a, k) => {
             let halfLeft, halfRight;
             if (n === 1) {
-                // Single lane: use a generous default (20% of image width)
-                halfLeft = halfRight = state.imgW * 0.10;
+                // Single mark: use half the max width of the Origin/Front pair lines
+                // so the lane is centred on the spot and doesn't fill the whole plate
+                const pairLineW = Math.max(a.pair.f.w, a.pair.o.w);
+                halfLeft = halfRight = pairLineW / 4; // half of half = quarter of full line width
             } else {
                 // Gap to left neighbour
                 halfLeft  = k > 0     ? (a.m.x - grp[k-1].m.x) / 2 : (grp[1].m.x - grp[0].m.x) / 2;
@@ -431,11 +448,18 @@ function switchTab(t) {
     document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
     $(t).classList.add('active'); document.querySelector(`[data-tab="${t}"]`).classList.add('active');
     if (t === 'tab-image') render();
+    else if (t === 'tab-profile') renderProfiles();
+    else if (t === 'tab-table') renderTable();
 }
 
 function renderProfiles() {
     const list = $('profile-display'); list.innerHTML = '';
-    state.lanes.forEach(l => {
+    const toShow = state.activeLane ? [state.activeLane] : [];
+    if (toShow.length === 0) {
+        list.innerHTML = '<div class="empty-msg">Select a lane in the Image tab to see its profile.</div>';
+        return;
+    }
+    toShow.forEach(l => {
         const div = document.createElement('div'); div.className = 'profile-card';
         div.innerHTML = `<h4 style="margin:0 0 5px 0">Lane ${l.id}</h4><canvas id="chart-${l.id}" style="width:100%; height:180px; background:#000"></canvas>`;
         list.appendChild(div);
@@ -476,7 +500,14 @@ function drawChart(cv, l) {
 
 function renderTable() {
     const body = $('table-body'); body.innerHTML = '';
-    state.lanes.forEach(l => { l.peaks.forEach((pk, i) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${l.id}.${i+1}</td><td>${pk.rf.toFixed(3)}</td><td>${pk.area.toFixed(0)}</td><td>-</td>`; body.appendChild(tr); }); });
+    const toShow = state.activeLane ? [state.activeLane] : [];
+    toShow.forEach(l => {
+        l.peaks.forEach((pk, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${l.id}.${i+1}</td><td>${pk.rf.toFixed(3)}</td><td>${pk.area.toFixed(0)}</td><td>-</td>`;
+            body.appendChild(tr);
+        });
+    });
 }
 
 function saveState() {

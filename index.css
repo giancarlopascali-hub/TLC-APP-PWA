@@ -95,9 +95,9 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 /* --- Toolbars --- */
 .bottom-toolbar {
     background: var(--header-bg); border-top: 1px solid var(--border-color);
-    /* Hard 48px floor + safe-area so the Android gesture pill never overlaps.
-       Android gesture nav does NOT set env(safe-area-inset-bottom), hence the max(). */
-    padding: 8px 8px max(48px, calc(16px + env(safe-area-inset-bottom, 0px)));
+    /* 64px floor clears the Android gesture pill (~34px) with comfortable margin.
+       env(safe-area-inset-bottom) handles iPhone notch / newer Android. */
+    padding: 8px 8px max(64px, calc(20px + env(safe-area-inset-bottom, 0px)));
     display: flex; flex-direction: column; gap: 6px;
     z-index: 500;
 }
