@@ -274,7 +274,19 @@ function attachListeners() {
             switchView('landing');
         }
     };
-    $('btn-reset-img').onclick = () => { if(confirm('Reset all annotations?')) { state.lines=[]; state.spottingMarks=[]; state.lanes=[]; renderProfiles(); renderTable(); render(); } };
+    $('btn-reset-img').onclick = () => { 
+        if(confirm('Reset annotations and image orientation?')) { 
+            saveState();
+            state.lines=[]; state.spottingMarks=[]; state.lanes=[]; 
+            state.imageRotation = 0;
+            const cv = $('canvas-main');
+            if (state.imgEl) {
+                const sc2 = Math.min(cv.width/state.imgW, cv.height/state.imgH) * 0.9;
+                state.view = { zoom: sc2, dx: (cv.width - state.imgW*sc2)/2, dy: (cv.height - state.imgH*sc2)/2 };
+            }
+            renderProfiles(); renderTable(); render(); 
+        } 
+    };
     $('btn-undo').onclick = undo;
     $('btn-find-lanes').onclick = findLanes;
 
@@ -478,7 +490,18 @@ function drawChart(cv, l) {
     ctx.stroke();
     (l.peaks || []).forEach(pk => {
         const x = PAD+(pk.idx/(n-1))*drawW, y = h-PAD-(pk.height/max)*drawH;
+        // Peak center
         ctx.fillStyle = pk.manual ? '#e34c26' : '#f0883e'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill();
+        
+        // Peak boundaries
+        if (pk.lb !== undefined && pk.rb !== undefined) {
+            ctx.setLineDash([2, 2]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            const xL = PAD+(pk.lb/(n-1))*drawW;
+            const xR = PAD+(pk.rb/(n-1))*drawW;
+            ctx.beginPath(); ctx.moveTo(xL, PAD); ctx.lineTo(xL, h-PAD); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(xR, PAD); ctx.lineTo(xR, h-PAD); ctx.stroke();
+            ctx.setLineDash([]);
+        }
     });
     
     cv.onmousedown = e => {
@@ -511,10 +534,26 @@ function renderTable() {
 }
 
 function saveState() {
-    state.undoStack.push({ lines: JSON.parse(JSON.stringify(state.lines)), marks: JSON.parse(JSON.stringify(state.spottingMarks)) });
+    state.undoStack.push({ 
+        lines: JSON.parse(JSON.stringify(state.lines)), 
+        marks: JSON.parse(JSON.stringify(state.spottingMarks)),
+        lanes: JSON.parse(JSON.stringify(state.lanes)),
+        rotation: state.imageRotation
+    });
     if (state.undoStack.length > 20) state.undoStack.shift();
 }
-function undo() { if (state.undoStack.length) { const s = state.undoStack.pop(); state.lines = s.lines; state.spottingMarks = s.marks; render(); } }
+function undo() { 
+    if (state.undoStack.length) { 
+        const s = state.undoStack.pop(); 
+        state.lines = s.lines; 
+        state.spottingMarks = s.marks; 
+        state.lanes = s.lanes || [];
+        state.imageRotation = s.rotation || 0;
+        render(); 
+        renderProfiles();
+        renderTable();
+    } 
+}
 
 // (crop functionality removed)
 
