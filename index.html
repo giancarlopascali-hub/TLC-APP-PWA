@@ -82,9 +82,12 @@
                             <input type="range" id="peak-res" min="1" max="50" value="10">
                         </div>
                     </div>
-                    <div class="tool-group">
-                        <button id="btn-peak-mode" class="tool-item" data-mode="add">➕<span>Add Peak</span></button>
-                        <button id="btn-reset-peaks" class="tool-item">🗑️<span>Clear</span></button>
+                    <div class="tool-group" id="profile-tools">
+                        <button class="tool-item profile-tool active" data-ptool="zoom">🔍<span>Zoom</span></button>
+                        <button class="tool-item profile-tool" data-ptool="add">➕<span>Add</span></button>
+                        <button class="tool-item profile-tool" data-ptool="modify">🎨<span>Modify</span></button>
+                        <button id="btn-auto-detect" class="tool-item">🤖<span>Auto</span></button>
+                        <button id="btn-clear-peaks" class="tool-item">🗑️<span>Clear</span></button>
                     </div>
                 </div>
             </section>

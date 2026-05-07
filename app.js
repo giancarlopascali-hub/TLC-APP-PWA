@@ -17,7 +17,12 @@ const state = {
   // Multi-touch tracking
   pointers: new Map(),
   initialPinchDist: 0,
-  initialPinchZoom: 1
+  initialPinchZoom: 1,
+
+  // Profile tool state
+  profileTool: 'zoom',
+  profileView: { zoom: 1, offset: 0 },
+  activePeakPart: null // 'apex', 'lb', 'rb'
 };
 
 const $ = id => document.getElementById(id);
@@ -101,9 +106,12 @@ function render() {
             const lb = pk.lb || 0, rb = pk.rb || 0;
             const y_top = (0.5 - rb/(n-1)) * l.h * sy;
             const y_bot = (0.5 - lb/(n-1)) * l.h * sy;
-            ctx.fillStyle = isA ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.1)';
+            
+            const isManual = pk.manual || pk.modified;
+            ctx.fillStyle = isManual ? 'rgba(255, 82, 82, 0.2)' : (isA ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.1)');
             ctx.fillRect(-(l.w*sx)/2, y_top, l.w*sx, y_bot - y_top);
-            ctx.strokeStyle = isA ? 'rgba(255, 215, 0, 0.6)' : 'rgba(255, 215, 0, 0.3)';
+            
+            ctx.strokeStyle = isManual ? 'rgba(255, 82, 82, 0.6)' : (isA ? 'rgba(255, 215, 0, 0.6)' : 'rgba(255, 215, 0, 0.3)');
             ctx.beginPath(); ctx.moveTo(-l.w*sx/2, y_top); ctx.lineTo(l.w*sx/2, y_top); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(-l.w*sx/2, y_bot); ctx.lineTo(l.w*sx/2, y_bot); ctx.stroke();
         });
@@ -278,6 +286,7 @@ function attachListeners() {
         if(confirm('Reset annotations and image orientation?')) { 
             saveState();
             state.lines=[]; state.spottingMarks=[]; state.lanes=[]; 
+            state.activeLane = null;
             state.imageRotation = 0;
             const cv = $('canvas-main');
             if (state.imgEl) {
@@ -289,6 +298,16 @@ function attachListeners() {
     };
     $('btn-undo').onclick = undo;
     $('btn-find-lanes').onclick = findLanes;
+
+    // Profile Tab Tools
+    document.querySelectorAll('.profile-tool').forEach(b => b.onclick = () => {
+        document.querySelectorAll('.profile-tool').forEach(x => x.classList.remove('active'));
+        b.classList.add('active'); state.profileTool = b.dataset.ptool;
+    });
+    $('btn-auto-detect').onclick = () => updateDensitograms(true);
+    $('btn-clear-peaks').onclick = () => {
+        if (state.activeLane) { state.activeLane.peaks = []; renderProfiles(); renderTable(); render(); }
+    };
 
     // Sliders live update
     if($('peak-sens')) $('peak-sens').oninput = e => $('val-sens').textContent = e.target.value;
@@ -485,40 +504,134 @@ function drawChart(cv, l) {
     const ctx = cv.getContext('2d'), p = l.profile.slice().reverse(), n = p.length;
     const max = Math.max(...p, 1), w = cv.width, h = cv.height;
     const PAD = 20, drawW = w-PAD*2, drawH = h-PAD*2;
+
+    // Chart scale/pan
+    const z = state.profileView.zoom;
+    const off = state.profileView.offset;
+
+    function getX(idx) { return PAD + ((idx/(n-1)) * drawW * z) + off; }
+    function getIdx(x) { return Math.round(((x - off - PAD) / (drawW * z)) * (n - 1)); }
+
+    // Background & Grid
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    for(let i=0; i<=10; i++) {
+        const y = h-PAD - (i/10)*drawH; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(w-PAD, y); ctx.stroke();
+    }
+
+    // Line
     ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.beginPath();
-    p.forEach((v, i) => { const x = PAD+(i/(n-1))*drawW, y = h-PAD-(v/max)*drawH; if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    p.forEach((v, i) => {
+        const x = getX(i), y = h-PAD-(v/max)*drawH;
+        if (x >= PAD && x <= w-PAD) {
+            if (ctx.prevX === undefined || ctx.prevX < PAD) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.prevX = x;
+    });
     ctx.stroke();
+
+    // Peaks
     (l.peaks || []).forEach(pk => {
-        const x = PAD+(pk.idx/(n-1))*drawW, y = h-PAD-(pk.height/max)*drawH;
-        // Peak center
-        ctx.fillStyle = pk.manual ? '#e34c26' : '#f0883e'; ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill();
+        const x = getX(pk.idx), y = h-PAD-(pk.height/max)*drawH;
+        const isManual = pk.manual || pk.modified;
         
-        // Peak boundaries
+        // Apex
+        ctx.fillStyle = isManual ? '#ff5252' : '#f0883e'; ctx.beginPath(); ctx.arc(x,y,6,0,7); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+
+        // Boundaries
         if (pk.lb !== undefined && pk.rb !== undefined) {
-            ctx.setLineDash([2, 2]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-            const xL = PAD+(pk.lb/(n-1))*drawW;
-            const xR = PAD+(pk.rb/(n-1))*drawW;
-            ctx.beginPath(); ctx.moveTo(xL, PAD); ctx.lineTo(xL, h-PAD); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(xR, PAD); ctx.lineTo(xR, h-PAD); ctx.stroke();
+            const xL = getX(pk.lb), xR = getX(pk.rb);
+            ctx.setLineDash([4, 4]); ctx.strokeStyle = isManual ? 'rgba(255, 82, 82, 0.5)' : 'rgba(255,255,255,0.3)';
+            if (xL >= PAD && xL <= w-PAD) { ctx.beginPath(); ctx.moveTo(xL, PAD); ctx.lineTo(xL, h-PAD); ctx.stroke(); }
+            if (xR >= PAD && xR <= w-PAD) { ctx.beginPath(); ctx.moveTo(xR, PAD); ctx.lineTo(xR, h-PAD); ctx.stroke(); }
             ctx.setLineDash([]);
         }
     });
-    
-    cv.onmousedown = e => {
-        const r = cv.getBoundingClientRect(); const mx = e.clientX-r.left;
-        let idx = Math.round(((mx-PAD)/drawW)*(n-1)); idx = Math.max(0, Math.min(n-1, idx));
-        const hit = (l.peaks || []).find(pk => Math.abs(mx-(PAD+(pk.idx/(n-1))*drawW))<15);
-        if (e.button===2) { if (hit) { l.peaks = l.peaks.filter(x=>x!==hit); renderProfiles(); renderTable(); render(); } return; }
-        if (hit) { state.isDraggingPeak = hit; state.activeLane = l; }
-        else { const v = p[idx], rf = (1.05/1.1- (1-idx/(n-1)))/(1.05/1.1-0.05/1.1); l.peaks.push({idx, rf, height:v, area:v*10, manual:true}); l.peaks.sort((a,b)=>a.idx-b.idx); renderProfiles(); renderTable(); render(); }
+
+    // Interaction
+    let isDragging = false, dragStart = null, initialOff = 0;
+    const chartPointers = new Map();
+    let initialPinchDist = 0, initialPinchZoom = 1;
+
+    cv.onpointerdown = e => {
+        chartPointers.set(e.pointerId, e);
+        cv.setPointerCapture(e.pointerId);
+        const r = cv.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+
+        if (chartPointers.size === 1) {
+            const idx = getIdx(mx);
+            if (state.profileTool === 'zoom') {
+                isDragging = true; dragStart = mx; initialOff = off;
+            } else if (state.profileTool === 'add') {
+                const v = p[Math.max(0, Math.min(n-1, idx))];
+                const lb = Math.max(0, idx - 5), rb = Math.min(n-1, idx + 5);
+                const rf = (1.05/1.1- (1-idx/(n-1)))/(1.05/1.1-0.05/1.1);
+                l.peaks.push({ idx, rf, height: v, lb, rb, area: v*10, manual: true });
+                l.peaks.sort((a,b)=>a.idx-b.idx);
+                renderProfiles(); renderTable(); render();
+            } else if (state.profileTool === 'modify') {
+                const hit = l.peaks.find(pk => {
+                    const x = getX(pk.idx), xL = getX(pk.lb), xR = getX(pk.rb);
+                    if (Math.abs(mx-x)<15) { state.activePeakPart = 'apex'; return true; }
+                    if (Math.abs(mx-xL)<15) { state.activePeakPart = 'lb'; return true; }
+                    if (Math.abs(mx-xR)<15) { state.activePeakPart = 'rb'; return true; }
+                    return false;
+                });
+                if (hit) { state.isDraggingPeak = hit; isDragging = true; }
+            }
+        } else if (chartPointers.size === 2) {
+            const pts = Array.from(chartPointers.values());
+            initialPinchDist = Math.abs(pts[0].clientX - pts[1].clientX);
+            initialPinchZoom = state.profileView.zoom;
+            isDragging = false;
+        }
     };
-    cv.onmousemove = e => {
-        if (!state.isDraggingPeak) return; const r = cv.getBoundingClientRect(); const mx = e.clientX-r.left;
-        let idx = Math.round(((mx-PAD)/drawW)*(n-1)); idx = Math.max(0, Math.min(n-1, idx));
-        state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = (1.05/1.1-(1-idx/(n-1)))/(1.05/1.1-0.05/1.1); renderProfiles(); renderTable(); render();
+
+    cv.onpointermove = e => {
+        chartPointers.set(e.pointerId, e);
+        const r = cv.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+
+        if (chartPointers.size === 1) {
+            const idx = Math.max(0, Math.min(n-1, getIdx(mx)));
+            if (state.profileTool === 'zoom' && isDragging) {
+                state.profileView.offset = initialOff + (mx - dragStart);
+                drawChart(cv, l);
+            } else if (state.profileTool === 'modify' && state.isDraggingPeak) {
+                const pk = state.isDraggingPeak; pk.modified = true;
+                if (state.activePeakPart === 'apex') { pk.idx = idx; pk.height = p[idx]; pk.rf = (1.05/1.1-(1-idx/(n-1)))/(1.05/1.1-0.05/1.1); }
+                else if (state.activePeakPart === 'lb') pk.lb = idx;
+                else if (state.activePeakPart === 'rb') pk.rb = idx;
+                drawChart(cv, l);
+            }
+        } else if (chartPointers.size === 2) {
+            const pts = Array.from(chartPointers.values());
+            const dist = Math.abs(pts[0].clientX - pts[1].clientX);
+            if (initialPinchDist > 10) {
+                state.profileView.zoom = initialPinchZoom * (dist / initialPinchDist);
+                drawChart(cv, l);
+            }
+        }
     };
-    cv.onmouseup = () => state.isDraggingPeak = null;
-    cv.oncontextmenu = e => e.preventDefault();
+
+    cv.onpointerup = e => {
+        chartPointers.delete(e.pointerId);
+        isDragging = false;
+        if (state.isDraggingPeak) {
+            state.isDraggingPeak = null; renderTable(); render();
+        }
+    };
+    cv.onpointercancel = cv.onpointerup;
+
+    // Wheel zoom
+    cv.onwheel = e => {
+        e.preventDefault();
+        const d = e.deltaY > 0 ? 0.9 : 1.1;
+        state.profileView.zoom *= d;
+        drawChart(cv, l);
+    };
 }
 
 function renderTable() {
