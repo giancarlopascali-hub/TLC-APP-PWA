@@ -589,6 +589,7 @@ function drawChart(cv, l) {
             const pts = Array.from(chartPointers.values());
             initialPinchDist = Math.abs(pts[0].clientX - pts[1].clientX);
             initialPinchZoom = state.profileView.zoom;
+            initialOff = state.profileView.offset;
             isDragging = false;
         }
     };
@@ -618,11 +619,14 @@ function drawChart(cv, l) {
             }
         } else if (chartPointers.size === 2) {
             const pts = Array.from(chartPointers.values());
-            const dist = Math.abs(pts[0].clientX - pts[1].clientX); // Horizontal only
+            const dist = Math.abs(pts[0].clientX - pts[1].clientX);
+            const midX = (pts[0].clientX + pts[1].clientX) / 2 - r.left;
+            
             if (initialPinchDist > 5) {
-                state.profileView.zoom = initialPinchZoom * (dist / initialPinchDist);
-                // Also adjust offset to keep focal point relatively stable
-                state.profileView.offset = mx - ((mx - initialOff) * (state.profileView.zoom / initialPinchZoom));
+                const newZoom = initialPinchZoom * (dist / initialPinchDist);
+                // Anchor the zoom to the midpoint between the fingers
+                state.profileView.offset = midX - ((midX - initialOff) * (newZoom / initialPinchZoom));
+                state.profileView.zoom = newZoom;
                 drawChart(cv, l);
             }
         }
@@ -640,8 +644,14 @@ function drawChart(cv, l) {
     // Wheel zoom
     cv.onwheel = e => {
         e.preventDefault();
+        const r = cv.getBoundingClientRect();
+        const mx = e.clientX - r.left;
         const d = e.deltaY > 0 ? 0.9 : 1.1;
-        state.profileView.zoom *= d;
+        const oldZ = state.profileView.zoom;
+        const newZ = oldZ * d;
+        
+        state.profileView.offset = mx - ((mx - state.profileView.offset) * (newZ / oldZ));
+        state.profileView.zoom = newZ;
         drawChart(cv, l);
     };
 }
