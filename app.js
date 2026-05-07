@@ -308,6 +308,10 @@ function attachListeners() {
     $('btn-clear-peaks').onclick = () => {
         if (state.activeLane) { state.activeLane.peaks = []; renderProfiles(); renderTable(); render(); }
     };
+    $('btn-reset-zoom').onclick = () => {
+        state.profileView = { zoom: 1, offset: 0 };
+        if (state.activeLane) renderProfiles();
+    };
 
     // Sliders live update
     if($('peak-sens')) $('peak-sens').oninput = e => $('val-sens').textContent = e.target.value;
@@ -409,18 +413,18 @@ function findLanes() {
         grp.forEach((a, k) => {
             let halfLeft, halfRight;
             if (n === 1) {
-                // Single mark: use half the max width of the Origin/Front pair lines
-                // so the lane is centred on the spot and doesn't fill the whole plate
+                // Single mark: cap width at 50% of the Origin/Front pair line width
                 const pairLineW = Math.max(a.pair.f.w, a.pair.o.w);
-                halfLeft = halfRight = pairLineW / 4; // half of half = quarter of full line width
+                halfLeft = halfRight = pairLineW / 4; // 25% + 25% = 50% total
             } else {
                 // Gap to left neighbour
                 halfLeft  = k > 0     ? (a.m.x - grp[k-1].m.x) / 2 : (grp[1].m.x - grp[0].m.x) / 2;
                 // Gap to right neighbour
                 halfRight = k < n - 1 ? (grp[k+1].m.x - a.m.x) / 2 : (grp[n-1].m.x - grp[n-2].m.x) / 2;
             }
-            // Lane width = twice the smaller half-gap → guarantees no overlap
-            const w = Math.max(Math.min(halfLeft, halfRight) * 2, 10);
+            // Final lane width = twice the smaller half-gap, strictly capped at 50% of line width
+            const pairLineW = Math.max(a.pair.f.w, a.pair.o.w);
+            const w = Math.min(Math.max(Math.min(halfLeft, halfRight) * 2, 10), pairLineW * 0.5);
             laneWidths[a.idx] = w;
         });
     });
@@ -601,16 +605,24 @@ function drawChart(cv, l) {
                 drawChart(cv, l);
             } else if (state.profileTool === 'modify' && state.isDraggingPeak) {
                 const pk = state.isDraggingPeak; pk.modified = true;
-                if (state.activePeakPart === 'apex') { pk.idx = idx; pk.height = p[idx]; pk.rf = (1.05/1.1-(1-idx/(n-1)))/(1.05/1.1-0.05/1.1); }
+                if (state.activePeakPart === 'apex') { 
+                    pk.idx = idx; pk.height = p[idx]; 
+                    pk.rf = (1.05/1.1-(1-idx/(n-1)))/(1.05/1.1-0.05/1.1);
+                    // Contextually calculate boundaries when moving apex
+                    const bounds = findValleys(p, idx);
+                    pk.lb = bounds.lb; pk.rb = bounds.rb;
+                }
                 else if (state.activePeakPart === 'lb') pk.lb = idx;
                 else if (state.activePeakPart === 'rb') pk.rb = idx;
                 drawChart(cv, l);
             }
         } else if (chartPointers.size === 2) {
             const pts = Array.from(chartPointers.values());
-            const dist = Math.abs(pts[0].clientX - pts[1].clientX);
-            if (initialPinchDist > 10) {
+            const dist = Math.abs(pts[0].clientX - pts[1].clientX); // Horizontal only
+            if (initialPinchDist > 5) {
                 state.profileView.zoom = initialPinchZoom * (dist / initialPinchDist);
+                // Also adjust offset to keep focal point relatively stable
+                state.profileView.offset = mx - ((mx - initialOff) * (state.profileView.zoom / initialPinchZoom));
                 drawChart(cv, l);
             }
         }
@@ -632,6 +644,24 @@ function drawChart(cv, l) {
         state.profileView.zoom *= d;
         drawChart(cv, l);
     };
+}
+
+function findValleys(p, apexIdx) {
+    let lb = apexIdx, rb = apexIdx;
+    const n = p.length;
+    // Move left to find local minimum
+    for (let i = apexIdx - 1; i >= 0; i--) {
+        if (p[i] <= p[i+1]) lb = i;
+        else break;
+        if (p[i] < 0.05 * p[apexIdx]) break; // Noise floor
+    }
+    // Move right to find local minimum
+    for (let i = apexIdx + 1; i < n; i++) {
+        if (p[i] <= p[i-1]) rb = i;
+        else break;
+        if (p[i] < 0.05 * p[apexIdx]) break;
+    }
+    return { lb, rb };
 }
 
 function renderTable() {
