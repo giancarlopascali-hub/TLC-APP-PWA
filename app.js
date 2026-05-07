@@ -111,10 +111,6 @@ function render() {
     ctx.restore();
   });
 
-  if (state.roiRect) {
-    ctx.strokeStyle = '#f0883e'; ctx.lineWidth = 2/state.view.zoom; ctx.setLineDash([5, 5]);
-    ctx.strokeRect(state.roiRect.x*sx, state.roiRect.y*sy, state.roiRect.w*sx, state.roiRect.h*sy);
-  }
 
   ctx.restore(); ctx.restore();
 }
@@ -166,7 +162,7 @@ function attachListeners() {
                 }
                 state.spottingMarks.push({x:tx, y:ty}); 
             }
-            else if (state.activeTool === 'roi') { state.roiRect = {x:p.x, y:p.y, w:1, h:1}; }
+            // roi/crop tool removed
             else if (state.activeTool === 'rotate') { saveState(); state.isRotating = true; state.rotateStart = state.imageRotation; }
         } else if (state.pointers.size === 2) {
             const pts = Array.from(state.pointers.values());
@@ -190,7 +186,7 @@ function attachListeners() {
             }
             else if (state.isRotating) { state.imageRotation = state.rotateStart + (e.clientX-state.mStart.x)*0.005; }
             else if (state.editingField === 'resize-line') { state.activeLine.w = Math.abs(p.x - state.activeLine.cx) * 2; }
-            else if (state.roiRect) { state.roiRect.w = p.x-state.roiRect.x; state.roiRect.h = p.y-state.roiRect.y; }
+            // roiRect removed
         } else if (state.pointers.size === 2) {
             const pts = Array.from(state.pointers.values());
             const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
@@ -218,7 +214,6 @@ function attachListeners() {
     window.onpointerup = e => {
         state.pointers.delete(e.pointerId);
         if (state.pointers.size === 0) {
-            if (state.roiRect && Math.abs(state.roiRect.w) > 5) applyCrop();
             state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; state.roiRect = null; 
         } else if (state.pointers.size === 1) {
             // Reset drag start for the remaining pointer to prevent jumps
@@ -249,9 +244,24 @@ function attachListeners() {
         b.classList.add('active'); state.activeTool = b.dataset.tool;
     });
     $('landing-upload').onclick = () => $('file-input').click();
-    $('file-input').onchange = e => { if (e.target.files[0]) handleUpload(e.target.files[0]); };
-    $('btn-new').onclick = () => { if(confirm('New analysis?')) switchView('landing'); };
-    $('btn-reset-img').onclick = () => { if(confirm('Reset all?')) { state.lines=[]; state.spottingMarks=[]; state.lanes=[]; render(); } };
+    $('landing-camera').onclick = () => $('camera-input').click();
+    $('file-input').onchange = e => { if (e.target.files[0]) { handleUpload(e.target.files[0]); e.target.value = ''; } };
+    $('camera-input').onchange = e => { if (e.target.files[0]) { handleUpload(e.target.files[0]); e.target.value = ''; } };
+    $('btn-new').onclick = () => {
+        if(confirm('Start a new analysis? Current data will be lost.')) {
+            // Reset all state
+            state.imgEl = null; state.imgB64 = null; state.imgW = 0; state.imgH = 0;
+            state.lines = []; state.spottingMarks = []; state.lanes = [];
+            state.imageRotation = 0;
+            state.view = { zoom: 1, dx: 0, dy: 0 };
+            state.undoStack = [];
+            // Reset file inputs so onchange fires again
+            $('file-input').value = '';
+            $('camera-input').value = '';
+            switchView('landing');
+        }
+    };
+    $('btn-reset-img').onclick = () => { if(confirm('Reset all annotations?')) { state.lines=[]; state.spottingMarks=[]; state.lanes=[]; renderProfiles(); renderTable(); render(); } };
     $('btn-undo').onclick = undo;
     $('btn-find-lanes').onclick = findLanes;
 
@@ -264,7 +274,7 @@ function attachListeners() {
 async function updateDensitograms(detectPeaks = false) {
   if (!state.lanes.length || !state.imgB64) return;
   try {
-    const res = await fetch('/api/generate_profiles', {
+    const res = await fetch('/generate_profiles', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ 
         image: state.imgB64, lanes: state.lanes, 
@@ -287,24 +297,99 @@ async function updateDensitograms(detectPeaks = false) {
 }
 
 function findLanes() {
-    if (state.lines.length < 2) return alert('Need 2+ lines');
-    const pool = [...state.lines]; const pairs = [];
+    if (state.lines.length < 2) return alert('Need 2+ lines (Origin + Front)');
+    if (state.spottingMarks.length < 1) return alert('Mark at least one spotting position first');
+    
+    const cv = $('canvas-main');
+    const sx = cv.width / state.imgW;
+    
+    // Convert all lines to canvas-space Y for reliable pairing
+    const linesWithCanvasY = state.lines.map(l => {
+        const cp = getImageCanvasPos(l.cx, l.cy, sx, sx);
+        return { line: l, canvasY: cp.cy };
+    });
+    
+    // Pair lines: find closest pair with sufficient Y separation
+    const pool = [...linesWithCanvasY]; const pairs = [];
     while (pool.length >= 2) {
         const l1 = pool.shift(); let bestIdx = -1, minDist = Infinity;
         for (let i=0; i<pool.length; i++) {
-            const d = Math.abs(l1.cy - pool[i].cy);
-            if (d < minDist && d > 100) { minDist = d; bestIdx = i; }
+            const d = Math.abs(l1.canvasY - pool[i].canvasY);
+            if (d < minDist && d > 20) { minDist = d; bestIdx = i; }
         }
         if (bestIdx !== -1) {
             const l2 = pool.splice(bestIdx, 1)[0];
-            pairs.push(l1.cy < l2.cy ? {f:l1, o:l2} : {f:l2, o:l1});
+            // front = smaller canvasY (top), origin = larger canvasY (bottom)
+            const pair = l1.canvasY < l2.canvasY ? 
+                { f: l1.line, o: l2.line, fY: l1.canvasY, oY: l2.canvasY } :
+                { f: l2.line, o: l1.line, fY: l2.canvasY, oY: l1.canvasY };
+            pairs.push(pair);
         }
     }
-    state.lanes = [];
-    state.spottingMarks.forEach((m, i) => {
-        const p = pairs.reduce((a,b) => Math.min(Math.abs(m.y-a.f.cy), Math.abs(m.y-a.o.cy)) < Math.min(Math.abs(m.y-b.f.cy), Math.abs(m.y-b.o.cy)) ? a : b);
-        state.lanes.push({ id: i+1, cx: m.x, cy: (p.f.cy+p.o.cy)/2, w: 40, h: Math.abs(p.o.cy-p.f.cy)*1.1, peaks: [] });
+    if (pairs.length === 0) return alert('Could not pair lines. Make sure Origin and Front lines are separated.');
+    
+    // --- Lane width from inter-spot spacing (no overlap) ---
+    // Group marks by their assigned pair, then sort each group by X (image-space)
+    // so widths are derived from neighbour distances.
+
+    // First pass: assign each mark its best pair and compute laneCY / laneH
+    const assigned = state.spottingMarks.map((m, i) => {
+        const markCanvasPos = getImageCanvasPos(m.x, m.y, sx, sx);
+        const p = pairs.reduce((a, b) => {
+            const midA = (a.fY + a.oY) / 2;
+            const midB = (b.fY + b.oY) / 2;
+            return Math.abs(markCanvasPos.cy - midA) < Math.abs(markCanvasPos.cy - midB) ? a : b;
+        });
+        const laneH = Math.abs(p.o.cy - p.f.cy) * 1.1;
+        const laneCY = (p.f.cy + p.o.cy) / 2;
+        // pairKey groups marks that share the same Origin/Front pair
+        const pairKey = `${p.f.cx.toFixed(0)}_${p.o.cx.toFixed(0)}`;
+        return { idx: i, m, laneCY, laneH, pairKey };
     });
+
+    // Second pass: for each pair-group, sort by X and compute widths from gaps
+    const groups = {};
+    assigned.forEach(a => {
+        if (!groups[a.pairKey]) groups[a.pairKey] = [];
+        groups[a.pairKey].push(a);
+    });
+
+    // Build a lookup: original mark index → computed lane width
+    const laneWidths = {};
+    Object.values(groups).forEach(grp => {
+        // Sort by mark X position in image space
+        grp.sort((a, b) => a.m.x - b.m.x);
+        const n = grp.length;
+        grp.forEach((a, k) => {
+            let halfLeft, halfRight;
+            if (n === 1) {
+                // Single lane: use a generous default (20% of image width)
+                halfLeft = halfRight = state.imgW * 0.10;
+            } else {
+                // Gap to left neighbour
+                halfLeft  = k > 0     ? (a.m.x - grp[k-1].m.x) / 2 : (grp[1].m.x - grp[0].m.x) / 2;
+                // Gap to right neighbour
+                halfRight = k < n - 1 ? (grp[k+1].m.x - a.m.x) / 2 : (grp[n-1].m.x - grp[n-2].m.x) / 2;
+            }
+            // Lane width = twice the smaller half-gap → guarantees no overlap
+            const w = Math.max(Math.min(halfLeft, halfRight) * 2, 10);
+            laneWidths[a.idx] = w;
+        });
+    });
+
+    state.lanes = [];
+    assigned.forEach((a, i) => {
+        state.lanes.push({
+            id: i + 1,
+            cx: a.m.x,
+            cy: a.laneCY,
+            w: laneWidths[a.idx],
+            h: a.laneH,
+            angle: 0,
+            peaks: []
+        });
+    });
+    render();
     updateDensitograms(true);
 }
 
@@ -400,12 +485,7 @@ function saveState() {
 }
 function undo() { if (state.undoStack.length) { const s = state.undoStack.pop(); state.lines = s.lines; state.spottingMarks = s.marks; render(); } }
 
-function applyCrop() {
-    const r = state.roiRect; const x = r.w>0?r.x:r.x+r.w, y = r.h>0?r.y:r.y+r.h, w = Math.abs(r.w), h = Math.abs(r.h);
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    c.getContext('2d').drawImage(state.imgEl, x,y,w,h, 0,0,w,h);
-    handleUpload({ name: 'cropped.jpg' }); 
-}
+// (crop functionality removed)
 
 function dbg(msg) {
     const el = $('debug-overlay'); if (!el) return;
