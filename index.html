@@ -3,123 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TLC Analyzer Pro v6</title>
+    <title>AQ-TLC Analyzer Pro</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#121212">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="index.css">
+    <meta name="theme-color" content="#010409">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #010409;
+            --card-bg: #0d1117;
+            --sidebar-bg: #161b22;
+            --border-color: #30363d;
+            --accent-color: #1f6feb;
+            --text-main: #c9d1d9;
+            --text-dim: #8b949e;
+            --primary-green: #238636;
+            --secondary-gray: #30363d;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100vh; width: 100vw;
+            background: var(--bg-color); color: var(--text-main);
+            font-family: 'Inter', sans-serif; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- Landing View --- */
+        #view-landing {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; width: 100vw; padding: 20px; box-sizing: border-box; text-align: center;
+            position: absolute; top: 0; left: 0; z-index: 100; background: var(--bg-color);
+        }
+
+        .logo-box { margin-bottom: 40px; }
+        .logo-box h1 { 
+            font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin: 0; 
+            background: linear-gradient(135deg, #58a6ff, #bc8cff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .logo-box p { opacity: 0.7; font-size: 0.9rem; margin-top: 5px; }
+
+        .landing-actions {
+            display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 300px;
+        }
+
+        .btn-landing {
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 20px; cursor: pointer; color: var(--text-main);
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            transition: 0.2s;
+        }
+        .btn-landing:active { transform: scale(0.97); background: #161b22; }
+        .btn-landing span { font-weight: 600; font-size: 1.1rem; }
+
+        /* --- Workspace Layout --- */
+        #view-workspace {
+            display: flex; flex-direction: column; height: 100vh; width: 100vw;
+        }
+
+        .ws-header {
+            flex: 0 0 50px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 15px; border-bottom: 1px solid var(--border-color); background: var(--sidebar-bg);
+        }
+        .ws-logo { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.1rem; color: var(--accent-color); }
+        .badge { background: var(--primary-green); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-left: 5px; }
+        .guide-link { color: var(--text-dim); text-decoration: none; font-size: 0.8rem; }
+
+        .control-row {
+            flex: 0 0 60px; display: flex; align-items: center; gap: 10px; padding: 0 10px;
+            border-bottom: 1px solid var(--border-color); background: var(--card-bg);
+        }
+        .ctrl-btn {
+            background: var(--secondary-gray); border: 1px solid var(--border-color); border-radius: 6px;
+            color: var(--text-main); padding: 8px 12px; font-size: 0.8rem; cursor: pointer;
+            display: flex; align-items: center; gap: 5px;
+        }
+
+        .ws-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .tabs-nav {
+            flex: 0 0 45px; display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-color);
+        }
+        .tab-btn {
+            flex: 1; background: transparent; border: none; color: var(--text-dim); font-weight: 600;
+            font-size: 0.85rem; cursor: pointer; border-bottom: 2px solid transparent;
+        }
+        .tab-btn.active { color: var(--accent-color); border-bottom-color: var(--accent-color); background: rgba(31,111,235,0.05); }
+
+        .ws-body { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+        .content-viewport { flex: 1; position: relative; overflow: hidden; background: #000; }
+        .tab-content { width: 100%; height: 100%; position: relative; overflow: auto; }
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+        /* Sidebar */
+        .ws-sidebar {
+            flex: 0 0 10%; min-width: 50px; background: var(--sidebar-bg); border-left: 1px solid var(--border-color);
+            display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 15px;
+        }
+        .side-btn-primary { 
+            width: 40px; height: 40px; background: var(--primary-green); border: none; border-radius: 8px; color: white; font-size: 1.2rem;
+        }
+        .side-group { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+        .side-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700; }
+        .side-group input { width: 35px; background: var(--bg-color); border: 1px solid var(--border-color); color: white; font-size: 0.7rem; text-align: center; padding: 2px; }
+        .mode-btn { width: 30px; height: 30px; background: var(--secondary-gray); border: 1px solid var(--border-color); border-radius: 4px; color: white; font-size: 0.7rem; font-weight: 700; }
+        .mode-btn.active { background: var(--accent-color); border-color: white; }
+
+        /* Bottom Toolbar */
+        .bottom-toolbar-wrap {
+            flex: 0 0 auto; min-height: 80px; background: var(--sidebar-bg); border-top: 1px solid var(--border-color);
+            padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 20px)) 10px;
+        }
+        .toolbar-content { display: flex; justify-content: space-around; align-items: center; width: 100%; }
+        .tool-item, .mode-item {
+            background: transparent; border: none; color: var(--text-dim);
+            display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;
+        }
+        .tool-item span, .mode-item { font-size: 0.7rem; font-weight: 600; }
+        .tool-item.active, .mode-item.active { color: var(--accent-color); }
+
+        .table-scroll-wrap { padding: 10px; overflow: auto; height: 100%; }
+        .integration-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .integration-table th { text-align: left; color: var(--text-dim); padding: 8px; border-bottom: 2px solid var(--border-color); }
+        .integration-table td { padding: 8px; border-bottom: 1px solid var(--border-color); font-family: monospace; }
+    </style>
 </head>
-<body class="dark-mode">
-    <div class="app-shell">
-        <!-- Top Actions Header -->
-        <header class="main-header">
-            <div class="header-actions">
-                <button id="btn-new" class="icon-btn" title="New Image">🆕</button>
-                <button id="btn-reset-img" class="icon-btn" title="Reset Image">🔄</button>
-                <button id="btn-undo" class="icon-btn" title="Undo">↶</button>
-            </div>
-            <h1 class="app-title">TLC ANALYZER</h1>
-            <div class="header-spacer"></div>
-        </header>
+<body>
 
-        <!-- Top Navigation Tabs -->
-        <nav class="top-tabs">
-            <button class="tab-btn active" data-tab="tab-image">IMAGE</button>
-            <button class="tab-btn" data-tab="tab-profile">PROFILE</button>
-            <button class="tab-btn" data-tab="tab-table">TABLE</button>
-        </nav>
+    <!-- Landing Page -->
+    <div id="view-landing">
+        <div class="logo-box">
+            <h1>AQ-TLC Pro</h1>
+            <p>Mobile Analytical Workstation</p>
+        </div>
 
-        <!-- Main View Area -->
-        <main id="view-container">
-            <!-- Landing View -->
-            <section id="view-landing" class="view active">
-                <div class="landing-card">
-                    <div class="hero-icon">🔬</div>
-                    <h2>Quantitative TLC</h2>
-                    <p>Load a chromatography plate to begin analysis.</p>
-                    <div class="upload-btns">
-                        <button id="landing-upload" class="btn-primary">📁 Upload Plate</button>
-                        <button id="landing-camera" class="btn-primary">📷 Capture Photo</button>
-                    </div>
-                    <input type="file" id="file-input" accept="image/*" style="display:none">
-                    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
-                </div>
-            </section>
-
-            <!-- Image View -->
-            <section id="tab-image" class="view">
-                <div class="canvas-wrapper" id="canvas-container">
-                    <canvas id="canvas-main"></canvas>
-                </div>
-                <div class="bottom-toolbar" id="toolbar-image">
-                    <div class="tool-group">
-                        <button class="tool-item active" data-tool="pan">🖐️<span>Pan</span></button>
-                        <button class="tool-item" data-tool="rotate">🔄<span>Rotate</span></button>
-                        <button class="tool-item" data-tool="line">📏<span>Line</span></button>
-                        <button class="tool-item" data-tool="spot">📍<span>Mark</span></button>
-                        <button class="tool-item" data-tool="select">🖱️<span>Select</span></button>
-                        <button id="btn-find-lanes" class="tool-item" style="background:var(--accent-color); color:#fff">🔍<span>Find</span></button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Profile View -->
-            <section id="tab-profile" class="view">
-                <div id="profile-display" class="scroll-area">
-                    <!-- Densitograms injected here -->
-                    <div class="empty-msg">Detect lanes first to see profiles.</div>
-                </div>
-                <div class="bottom-toolbar" id="toolbar-profile">
-                    <div class="settings-strip">
-                        <div class="slider-box">
-                            <label>SENS <span id="val-sens">40</span></label>
-                            <input type="range" id="peak-sens" min="1" max="80" value="40">
-                        </div>
-                        <div class="slider-box">
-                            <label>RES <span id="val-res">10</span></label>
-                            <input type="range" id="peak-res" min="1" max="50" value="10">
-                        </div>
-                    </div>
-                    <div class="tool-group" id="profile-tools">
-                        <button class="tool-item profile-tool active" data-ptool="zoom">🔍<span>Zoom</span></button>
-                        <button class="tool-item profile-tool" data-ptool="add">➕<span>Add</span></button>
-                        <button class="tool-item profile-tool" data-ptool="modify">🎨<span>Modify</span></button>
-                        <button id="btn-reset-zoom" class="tool-item">📐<span>Fit</span></button>
-                        <button id="btn-auto-detect" class="tool-item">🤖<span>Auto</span></button>
-                        <button id="btn-clear-peaks" class="tool-item">🗑️<span>Clear</span></button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Table View -->
-            <section id="tab-table" class="view">
-                <div id="table-display" class="scroll-area">
-                    <table class="q-table">
-                        <thead>
-                            <tr id="table-header">
-                                <th>Lane.Pk</th>
-                                <th>Rf</th>
-                                <th>Area</th>
-                                <th>% Area</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-body"></tbody>
-                    </table>
-                </div>
-                <div class="bottom-toolbar" id="toolbar-table">
-                    <div class="mode-selector">
-                        <button class="mode-btn active" data-mode="relative">REL AREA</button>
-                        <button class="mode-btn" data-mode="area-cal">AREA CAL</button>
-                        <button class="mode-btn" data-mode="mw-cal">MW CAL</button>
-                    </div>
-                </div>
-            </section>
-        </main>
+        <div class="landing-actions">
+            <button class="btn-landing" id="btn-upload">
+                <span style="font-size: 2rem;">📂</span>
+                <span>Upload Image</span>
+            </button>
+            <button class="btn-landing" id="btn-camera" style="border-color: var(--accent-color);">
+                <span style="font-size: 2rem;">📸</span>
+                <span>Snap Picture</span>
+            </button>
+            <button class="btn-landing hidden" id="btn-install" style="border-color: #238636;">
+                <span style="font-size: 2rem;">📲</span>
+                <span>Install App</span>
+            </button>
+        </div>
+        <input type="file" id="file-input" class="hidden" accept="image/*">
+        <input type="file" id="camera-input" class="hidden" accept="image/*" capture="camera">
     </div>
 
-    <div id="debug-overlay"></div>
+    <!-- Main Workspace -->
+    <div id="view-workspace" class="hidden">
+        <!-- Top Row: App Name, Lanes, Guide -->
+        <header class="ws-header">
+            <div class="ws-logo">AQ-TLC Pro <span id="lane-count-badge" class="badge">0 Lanes</span></div>
+            <a href="guide.html" target="_blank" class="guide-link">Quick Guide</a>
+        </header>
+
+        <!-- Control Row: New, Reset, Undo -->
+        <div class="control-row">
+            <button id="btn-new" class="ctrl-btn">📁<span>New</span></button>
+            <button id="btn-reset" class="ctrl-btn">🔄<span>Reset</span></button>
+            <button id="btn-undo" class="ctrl-btn">↩️<span>Undo</span></button>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="ws-main">
+            <!-- Tabs Navigation -->
+            <div class="tabs-nav">
+                <button class="tab-btn active" data-tab="image">🖼️ Image</button>
+                <button class="tab-btn" data-tab="profile">📊 Profile</button>
+                <button class="tab-btn" data-tab="table">📋 Table</button>
+            </div>
+
+            <div class="ws-body">
+                <!-- Content Area (Image/Profile/Table) -->
+                <div class="content-viewport">
+                    <!-- Tab: Image -->
+                    <div id="tab-image" class="tab-content">
+                        <canvas id="canvas-main"></canvas>
+                    </div>
+                    <!-- Tab: Profile -->
+                    <div id="tab-profile" class="tab-content hidden">
+                        <div id="densitogram-list">
+                            <!-- Injected by JS -->
+                            <div class="empty-state">Select a lane to view analysis</div>
+                        </div>
+                    </div>
+                    <!-- Tab: Table -->
+                    <div id="tab-table" class="tab-content hidden">
+                        <div class="table-scroll-wrap">
+                            <table class="integration-table">
+                                <thead id="table-head"></thead>
+                                <tbody id="table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar (Always Visible inside workspace) -->
+                <aside class="ws-sidebar">
+                    <button id="btn-find-lanes" class="side-btn-primary">📡</button>
+                    
+                    <div class="side-group">
+                        <div class="side-label">Pol.</div>
+                        <button class="mode-btn active" data-mode="default">D</button>
+                        <button class="mode-btn" data-mode="dark">S</button>
+                        <button class="mode-btn" data-mode="bright">B</button>
+                    </div>
+
+                    <div class="side-group">
+                        <div class="side-label">Prom.</div>
+                        <input type="number" id="peak-sens" value="40" min="1" max="100">
+                    </div>
+                    <div class="side-group">
+                        <div class="side-label">Dist.</div>
+                        <input type="number" id="peak-res" value="8" min="1" max="50">
+                    </div>
+                    <div class="side-group">
+                        <div class="side-label">Thresh</div>
+                        <input type="number" id="peak-width" value="50" min="0" max="100">
+                    </div>
+
+                    <button id="btn-restore-defaults" class="side-btn" title="Restore Defaults">⚙️</button>
+                </aside>
+            </div>
+
+            <!-- Bottom Toolbars -->
+            <div class="bottom-toolbar-wrap">
+                <!-- Toolbar for Image -->
+                <div id="toolbar-image" class="toolbar-content">
+                    <button class="tool-item" data-tool="roi">📦<span>Crop</span></button>
+                    <button class="tool-item active" data-tool="pan">🖐️<span>Pan</span></button>
+                    <button class="tool-item" data-tool="rotate_img">🔄<span>Rotate</span></button>
+                    <button class="tool-item" data-tool="line">📏<span>Lines</span></button>
+                    <button class="tool-item" data-tool="spotting">📍<span>Marks</span></button>
+                    <button class="tool-item" data-tool="select">🖱️<span>Select</span></button>
+                </div>
+                <!-- Toolbar for Profile -->
+                <div id="toolbar-profile" class="toolbar-content hidden">
+                    <button id="btn-clear-peaks" class="tool-item">🗑️<span>Clear</span></button>
+                    <button id="btn-reset-integ" class="tool-item">🔄<span>Reset</span></button>
+                    <button id="btn-reset-view" class="tool-item">🔍<span>Fit</span></button>
+                    <button id="btn-export-lane" class="tool-item">📄<span>Export</span></button>
+                    <button id="btn-full-report" class="tool-item">📚<span>Full</span></button>
+                </div>
+                <!-- Toolbar for Table -->
+                <div id="toolbar-table" class="toolbar-content hidden">
+                    <button class="mode-item active" data-imode="relative">Rel. %</button>
+                    <button class="mode-item" data-imode="calibration">Calib.</button>
+                    <button class="mode-item" data-imode="mw_calibration">MW</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
