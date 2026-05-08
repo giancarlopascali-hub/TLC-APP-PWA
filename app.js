@@ -15,7 +15,9 @@ const state = {
   roiRect: null,
   isDraggingPeak: null, isDraggingBound: null, isPanningChart: null,
   deferredPrompt: null,
-  activePointers: new Map(), lastPinchDist: 0, lastMidpoint: null
+  activePointers: new Map(), lastPinchDist: 0, lastMidpoint: null,
+  profileTool: 'pan', // 'pan' or 'edit'
+  longPressTimeout: null
 };
 
 const $ = id => document.getElementById(id);
@@ -40,6 +42,11 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
     cv.oncontextmenu = e => e.preventDefault();
     
+    $('btn-edit-peaks').onclick = () => {
+        state.profileTool = state.profileTool === 'edit' ? 'pan' : 'edit';
+        $('btn-edit-peaks').classList.toggle('active', state.profileTool === 'edit');
+        renderProfiles();
+    };
     $('btn-clear-peaks').onclick = () => { if(state.activeLane) { saveState(); state.activeLane.peaks = []; renderProfiles(); renderTable(); render(); autoSave(); } };
     $('btn-reset-integ').onclick = () => updateDensitograms(true);
     $('btn-reset-view').onclick = () => { state.chartView = { zoom: 1, offset: 0 }; renderProfiles(); };
@@ -265,23 +272,34 @@ function renderProfiles() {
         cv.setPointerCapture(me.pointerId); chartPointers.set(me.pointerId, {x: me.clientX, y: me.clientY});
         if (chartPointers.size === 2) { lastChartPinchDist = getDist([...chartPointers.values()]); return; }
         if (chartPointers.size > 1) return;
+        
         let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         let hitBound = null, hitApex = null;
         for(let pk of (l.peaks||[])) {
             const px = PAD_L + ((pk.idx/(p.length-1)) * z + off) * plotW; const lb_x = PAD_L + ((pk.lb/(p.length-1)) * z + off) * plotW; const rb_x = PAD_L + ((pk.rb/(p.length-1)) * z + off) * plotW;
-            if (Math.abs(mx - px) < 15) hitApex = pk; else if (Math.abs(mx - lb_x) < 10) hitBound = {pk, type: 'lb'}; else if (Math.abs(mx - rb_x) < 10) hitBound = {pk, type: 'rb'};
+            if (Math.abs(mx - px) < 20) hitApex = pk; else if (Math.abs(mx - lb_x) < 15) hitBound = {pk, type: 'lb'}; else if (Math.abs(mx - rb_x) < 15) hitBound = {pk, type: 'rb'};
         }
-        if (me.button === 2 && hitApex) { saveState(); l.peaks = l.peaks.filter(pk => pk !== hitApex); renderProfiles(); renderTable(); render(); autoSave(); return; }
-        if (hitApex) { saveState(); state.isDraggingPeak = hitApex; return; }
-        if (hitBound) { saveState(); state.isDraggingBound = hitBound; return; }
-        if (z > 1) { state.isPanningChart = { startX: mx, startOff: off }; return; }
-        saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' });
-        renderProfiles(); renderTable(); render(); autoSave();
+
+        if (state.profileTool === 'edit') {
+            // Long press for deletion
+            state.longPressTimeout = setTimeout(() => {
+                if (hitApex) { saveState(); l.peaks = l.peaks.filter(pk => pk !== hitApex); renderProfiles(); renderTable(); render(); autoSave(); }
+            }, 700);
+
+            if (hitApex) { saveState(); state.isDraggingPeak = hitApex; return; }
+            if (hitBound) { saveState(); state.isDraggingBound = hitBound; return; }
+            saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' });
+            renderProfiles(); renderTable(); render(); autoSave();
+        } else {
+            // Default: Pan if zoomed
+            if (z > 1) { state.isPanningChart = { startX: mx, startOff: off }; }
+        }
     };
     cv.onpointermove = (me) => {
         const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
         if (chartPointers.has(me.pointerId)) chartPointers.set(me.pointerId, {x: me.clientX, y: me.clientY});
         if (chartPointers.size === 2) {
+            if (state.longPressTimeout) { clearTimeout(state.longPressTimeout); state.longPressTimeout = null; }
             const d = getDist([...chartPointers.values()]);
             if (Math.abs(d - lastChartPinchDist) > 5) {
                 const zoomFactor = d > lastChartPinchDist ? 1.05 : 0.95;
@@ -291,12 +309,23 @@ function renderProfiles() {
             }
             return;
         }
+        if (state.longPressTimeout && Math.abs(me.clientX - chartPointers.get(me.pointerId).x) > 10) { clearTimeout(state.longPressTimeout); state.longPressTimeout = null; }
+        
         let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         if (state.isDraggingBound) { const {pk, type} = state.isDraggingBound; if (type === 'lb') pk.lb = Math.min(pk.rb - 1, Math.max(0, idx)); else if (type === 'rb') pk.rb = Math.max(pk.lb + 1, Math.min(p.length-1, idx)); pk.manual = true; renderProfiles(); renderTable(); render(); return; }
-        if (state.isDraggingPeak) { state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); renderProfiles(); renderTable(); render(); return; }
+        if (state.isDraggingPeak) { 
+            const dIdx = idx - state.isDraggingPeak.idx;
+            state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length);
+            state.isDraggingPeak.lb = Math.max(0, state.isDraggingPeak.lb + dIdx);
+            state.isDraggingPeak.rb = Math.min(p.length-1, state.isDraggingPeak.rb + dIdx);
+            renderProfiles(); renderTable(); render(); return; 
+        }
         if (state.isPanningChart) { const dx = (mx - state.isPanningChart.startX) / plotW; state.chartView.offset = Math.min(0, Math.max(1 - z, state.isPanningChart.startOff + dx)); renderProfiles(); }
     };
-    cv.onpointerup = (me) => { chartPointers.delete(me.pointerId); if(state.isDraggingPeak || state.isDraggingBound || state.isPanningChart) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; state.isPanningChart = null; };
+    cv.onpointerup = (me) => { 
+        chartPointers.delete(me.pointerId); if (state.longPressTimeout) { clearTimeout(state.longPressTimeout); state.longPressTimeout = null; }
+        if(state.isDraggingPeak || state.isDraggingBound || state.isPanningChart) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; state.isPanningChart = null; 
+    };
     cv.onwheel = e => { e.preventDefault(); state.chartView.zoom = Math.max(1, state.chartView.zoom * (e.deltaY > 0 ? 0.9 : 1.1)); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); };
 }
 
@@ -342,7 +371,7 @@ function handlePointerDown(e) {
     const lnHit = state.lanes.find(ln => { const pos = getImageCanvasPos(ln.cx, ln.cy, sx, sx); return Math.abs(p.cx - pos.cx) < (ln.w * sx) / 2 && Math.abs(p.cy - pos.cy) < (ln.h * sx) / 2; });
     if (mHit) { saveState(); state.activeMark = mHit; state.activeLine = null; state.activeLane = null; state.editingField = 'move-mark'; }
     else if (lHit) { saveState(); state.activeLine = lHit; state.activeMark = null; state.activeLane = null; state.editingField = 'move-line'; }
-    else if (lnHit) { saveState(); state.activeLane = lnHit; state.activeLine = null; state.activeMark = null; state.editingField = 'move-lane'; renderProfiles(); renderTable(); }
+    else if (lnHit) { saveState(); state.activeLane = lnHit; state.activeLine = null; state.activeMark = null; state.editingField = (state.activeTool==='select') ? 'select-lane' : 'move-lane'; renderProfiles(); renderTable(); }
     else { state.activeMark = null; state.activeLine = null; state.activeLane = null; if (state.activeTool === 'pan') state.isPanning = true; state.viewStart = { ...state.view }; }
   } else if (state.activeTool === 'roi') { state.roiRect = { x: p.x, y: p.y, w: 1, h: 1 }; }
   else if (state.activeTool === 'line') { saveState(); const nl = { cx: p.x, cy: p.y, w: 1, angle: 0 }; state.lines.push(nl); state.activeLine = nl; state.editingField = 'resize-line'; }
@@ -371,6 +400,7 @@ function handlePointerMove(e) {
   else if (state.editingField === 'move-mark') { state.activeMark.x = p.x; state.activeMark.y = p.y; }
   else if (state.editingField === 'move-line') { state.activeLine.cx = p.x; state.activeLine.cy = p.y; }
   else if (state.editingField === 'move-lane') { state.activeLane.cx = p.x; state.activeLane.cy = p.y; }
+  else if (state.editingField === 'select-lane') { if(Math.abs(e.clientX - state.mStart.x)>10 || Math.abs(e.clientY - state.mStart.y)>10) { state.editingField = 'move-lane'; state.activeLane.cx = p.x; state.activeLane.cy = p.y; } }
   else if (state.editingField === 'resize-line') { const sx = $('canvas-main').width / state.imgW; state.activeLine.w = Math.abs(p.cx - getImageCanvasPos(state.activeLine.cx, state.activeLine.cy, sx, sx).cx) * 2 / sx; }
   else if (state.roiRect && state.activeTool === 'roi') { state.roiRect.w = p.x-state.roiRect.x; state.roiRect.h = p.y-state.roiRect.y; }
   render();
