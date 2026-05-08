@@ -45,8 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btn-undo').onclick = undo;
     
     const cv = $('canvas-main');
-    cv.onmousedown = handleMouseDown; cv.ondblclick = handleDblClick; cv.onwheel = handleWheel;
-    window.onmousemove = handleMouseMove; window.onmouseup = handleMouseUp;
+    cv.onpointerdown = handleMouseDown; cv.ondblclick = handleDblClick; cv.onwheel = handleWheel;
+    window.onpointermove = handleMouseMove; window.onpointerup = handleMouseUp;
     cv.oncontextmenu = e => e.preventDefault();
     
     $('btn-clear-peaks').onclick = () => { if(state.activeLane) { saveState(); state.activeLane.peaks = []; renderProfiles(); renderTable(); render(); autoSave(); } };
@@ -267,8 +267,10 @@ function renderProfiles() {
         ctx.font='bold 10px Inter'; ctx.textAlign='center'; ctx.fillText((pk.manual?'*':'')+pk.rf.toFixed(2), px, py-12);
     });
     ctx.restore(); ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center'; ctx.fillStyle = '#8b949e'; ctx.fillText('ORIGIN (0.0)', PAD_L, cv.height - 15); ctx.fillText('FRONT (1.0)', cv.width - PAD_R, cv.height - 15);
-    cv.onmousedown = (me) => {
-        const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left; let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
+    cv.onpointerdown = (me) => {
+        const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
+        cv.setPointerCapture(me.pointerId);
+        let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         let hitBound = null, hitApex = null;
         for(let pk of (l.peaks||[])) {
             const px = PAD_L + ((pk.idx/(p.length-1)) * z + off) * plotW; const lb_x = PAD_L + ((pk.lb/(p.length-1)) * z + off) * plotW; const rb_x = PAD_L + ((pk.rb/(p.length-1)) * z + off) * plotW;
@@ -280,12 +282,12 @@ function renderProfiles() {
         saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' });
         renderProfiles(); renderTable(); render(); autoSave();
     };
-    cv.onmousemove = (me) => {
+    cv.onpointermove = (me) => {
         const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left; let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         if (state.isDraggingBound) { const {pk, type} = state.isDraggingBound; if (type === 'lb') pk.lb = Math.min(pk.rb - 1, Math.max(0, idx)); else if (type === 'rb') pk.rb = Math.max(pk.lb + 1, Math.min(p.length-1, idx)); pk.manual = true; renderProfiles(); renderTable(); render(); return; }
         if (state.isDraggingPeak) { state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); renderProfiles(); renderTable(); render(); }
     };
-    cv.onmouseup = () => { if(state.isDraggingPeak || state.isDraggingBound) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; };
+    cv.onpointerup = () => { if(state.isDraggingPeak || state.isDraggingBound) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; };
     cv.onwheel = e => { e.preventDefault(); state.chartView.zoom = Math.max(1, state.chartView.zoom * (e.deltaY > 0 ? 0.9 : 1.1)); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); };
 }
 
@@ -315,7 +317,8 @@ function getImageCanvasPos(x, y, sx, sy) { const icx = (state.imgW*sx)/2; const 
 function getPos(e, canvas) { const rect = canvas.getBoundingClientRect(); const scX = (e.clientX - rect.left) * (canvas.width / rect.width); const scY = (e.clientY - rect.top) * (canvas.height / rect.height); const z = state.view.zoom; let x = (scX - state.view.dx) / z, y = (scY - state.view.dy) / z; const sx = canvas.width / state.imgW; const icx = (state.imgW*sx)/2, icy = (state.imgH*sx)/2; let dx = x - icx, dy = y - icy; const sa = Math.sin(-state.imageRotation), ca = Math.cos(-state.imageRotation); return { x: ((dx * ca - dy * sa) + icx) / sx, y: ((dx * sa + dy * ca) + icy) / sx, scX, scY, cx: x, cy: y }; }
 
 function handleMouseDown(e) {
-  const p = getPos(e, $('canvas-main')); state.dragStart = p; state.mStart = { x: e.clientX, y: e.clientY }; const sx = $('canvas-main').width / state.imgW;
+  const cv = $('canvas-main'); cv.setPointerCapture(e.pointerId);
+  const p = getPos(e, cv); state.dragStart = p; state.mStart = { x: e.clientX, y: e.clientY }; const sx = cv.width / state.imgW;
   if (state.activeTool === 'select' || state.activeTool === 'pan') {
     const mHit = state.spottingMarks.find(m => Math.sqrt((p.x-m.x)**2 + (p.y-m.y)**2) < 12);
     const lHit = state.lines.find(l => { const pos = getImageCanvasPos(l.cx, l.cy, sx, sx); return Math.abs(p.cy - pos.cy) < 20 && Math.abs(p.cx - pos.cx) < (l.w * sx) / 2; });
