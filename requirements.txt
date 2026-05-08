@@ -1,4 +1,5 @@
 Flask==2.2.3
+Werkzeug==2.2.3
 opencv-python-headless
 numpy
 scikit-image
