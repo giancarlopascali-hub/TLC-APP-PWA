@@ -13,8 +13,9 @@ const state = {
   chartView: { zoom: 1, offset: 0 },
   polarityMode: 'default',
   roiRect: null,
-  isDraggingPeak: null, isDraggingBound: null,
-  deferredPrompt: null
+  isDraggingPeak: null, isDraggingBound: null, isPanningChart: null,
+  deferredPrompt: null,
+  activePointers: new Map(), lastPinchDist: 0, lastMidpoint: null
 };
 
 const $ = id => document.getElementById(id);
@@ -23,18 +24,8 @@ const $ = id => document.getElementById(id);
 document.addEventListener('DOMContentLoaded', () => {
     initTabs(); initTools(); initSidebar();
     
-    // Installation Logic
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault(); state.deferredPrompt = e;
-        $('btn-install').classList.remove('hidden');
-    });
-
-    $('btn-install').onclick = async () => {
-        if (!state.deferredPrompt) return;
-        state.deferredPrompt.prompt();
-        const { outcome } = await state.deferredPrompt.userChoice;
-        if (outcome === 'accepted') { $('btn-install').classList.add('hidden'); state.deferredPrompt = null; }
-    };
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.deferredPrompt = e; $('btn-install').classList.remove('hidden'); });
+    $('btn-install').onclick = async () => { if (!state.deferredPrompt) return; state.deferredPrompt.prompt(); const { outcome } = await state.deferredPrompt.userChoice; if (outcome === 'accepted') { $('btn-install').classList.add('hidden'); state.deferredPrompt = null; } };
 
     $('btn-upload').onclick = () => $('file-input').click();
     $('btn-camera').onclick = () => $('camera-input').click();
@@ -45,8 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btn-undo').onclick = undo;
     
     const cv = $('canvas-main');
-    cv.onpointerdown = handleMouseDown; cv.ondblclick = handleDblClick; cv.onwheel = handleWheel;
-    window.onpointermove = handleMouseMove; window.onpointerup = handleMouseUp;
+    cv.onpointerdown = handlePointerDown; cv.ondblclick = handleDblClick; cv.onwheel = handleWheel;
+    window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
     cv.oncontextmenu = e => e.preventDefault();
     
     $('btn-clear-peaks').onclick = () => { if(state.activeLane) { saveState(); state.activeLane.peaks = []; renderProfiles(); renderTable(); render(); autoSave(); } };
@@ -247,7 +238,7 @@ function renderProfiles() {
             <input type="text" value="${l.name || 'Lane '+l.id}" style="background:transparent; border:none; color:white; font-family:Outfit; font-size:1.1rem; font-weight:700; flex:1;" onchange="state.activeLane.name=this.value; render(); autoSave();">
             <span style="font-size:0.7rem; color:var(--text-dim)">#${l.id}</span>
         </div>
-        <canvas id="chart-active" style="width:100%; height:250px; background:#000; cursor:crosshair"></canvas>
+        <canvas id="chart-active" style="width:100%; height:250px; background:#000; cursor:crosshair; touch-action:none;"></canvas>
     `;
     list.appendChild(item);
     const cv = $('chart-active'); cv.width = cv.clientWidth; cv.height = cv.clientHeight;
@@ -267,27 +258,45 @@ function renderProfiles() {
         ctx.font='bold 10px Inter'; ctx.textAlign='center'; ctx.fillText((pk.manual?'*':'')+pk.rf.toFixed(2), px, py-12);
     });
     ctx.restore(); ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center'; ctx.fillStyle = '#8b949e'; ctx.fillText('ORIGIN (0.0)', PAD_L, cv.height - 15); ctx.fillText('FRONT (1.0)', cv.width - PAD_R, cv.height - 15);
+    
+    let chartPointers = new Map(); let lastChartPinchDist = 0;
     cv.onpointerdown = (me) => {
         const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
-        cv.setPointerCapture(me.pointerId);
+        cv.setPointerCapture(me.pointerId); chartPointers.set(me.pointerId, {x: me.clientX, y: me.clientY});
+        if (chartPointers.size === 2) { lastChartPinchDist = getDist([...chartPointers.values()]); return; }
+        if (chartPointers.size > 1) return;
         let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         let hitBound = null, hitApex = null;
         for(let pk of (l.peaks||[])) {
             const px = PAD_L + ((pk.idx/(p.length-1)) * z + off) * plotW; const lb_x = PAD_L + ((pk.lb/(p.length-1)) * z + off) * plotW; const rb_x = PAD_L + ((pk.rb/(p.length-1)) * z + off) * plotW;
-            if (Math.abs(mx - px) < 15) hitApex = pk; else if (Math.abs(mx - lb_x) < 8) hitBound = {pk, type: 'lb'}; else if (Math.abs(mx - rb_x) < 8) hitBound = {pk, type: 'rb'};
+            if (Math.abs(mx - px) < 15) hitApex = pk; else if (Math.abs(mx - lb_x) < 10) hitBound = {pk, type: 'lb'}; else if (Math.abs(mx - rb_x) < 10) hitBound = {pk, type: 'rb'};
         }
         if (me.button === 2 && hitApex) { saveState(); l.peaks = l.peaks.filter(pk => pk !== hitApex); renderProfiles(); renderTable(); render(); autoSave(); return; }
         if (hitApex) { saveState(); state.isDraggingPeak = hitApex; return; }
         if (hitBound) { saveState(); state.isDraggingBound = hitBound; return; }
+        if (z > 1) { state.isPanningChart = { startX: mx, startOff: off }; return; }
         saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' });
         renderProfiles(); renderTable(); render(); autoSave();
     };
     cv.onpointermove = (me) => {
-        const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left; let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
+        const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
+        if (chartPointers.has(me.pointerId)) chartPointers.set(me.pointerId, {x: me.clientX, y: me.clientY});
+        if (chartPointers.size === 2) {
+            const d = getDist([...chartPointers.values()]);
+            if (Math.abs(d - lastChartPinchDist) > 5) {
+                const zoomFactor = d > lastChartPinchDist ? 1.05 : 0.95;
+                state.chartView.zoom = Math.max(1, state.chartView.zoom * zoomFactor);
+                if (state.chartView.zoom === 1) state.chartView.offset = 0;
+                lastChartPinchDist = d; renderProfiles();
+            }
+            return;
+        }
+        let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         if (state.isDraggingBound) { const {pk, type} = state.isDraggingBound; if (type === 'lb') pk.lb = Math.min(pk.rb - 1, Math.max(0, idx)); else if (type === 'rb') pk.rb = Math.max(pk.lb + 1, Math.min(p.length-1, idx)); pk.manual = true; renderProfiles(); renderTable(); render(); return; }
-        if (state.isDraggingPeak) { state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); renderProfiles(); renderTable(); render(); }
+        if (state.isDraggingPeak) { state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); renderProfiles(); renderTable(); render(); return; }
+        if (state.isPanningChart) { const dx = (mx - state.isPanningChart.startX) / plotW; state.chartView.offset = Math.min(0, Math.max(1 - z, state.isPanningChart.startOff + dx)); renderProfiles(); }
     };
-    cv.onpointerup = () => { if(state.isDraggingPeak || state.isDraggingBound) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; };
+    cv.onpointerup = (me) => { chartPointers.delete(me.pointerId); if(state.isDraggingPeak || state.isDraggingBound || state.isPanningChart) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; state.isPanningChart = null; };
     cv.onwheel = e => { e.preventDefault(); state.chartView.zoom = Math.max(1, state.chartView.zoom * (e.deltaY > 0 ? 0.9 : 1.1)); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); };
 }
 
@@ -315,9 +324,17 @@ function calculateMWCalibrationCurve() { const stds = []; state.lanes.forEach(l 
 function calculateRf(idx, n) { return ( (1.05/1.10) - (1.0 - (idx/(n-1))) ) / ( (1.05/1.10) - (0.05/1.10) ); }
 function getImageCanvasPos(x, y, sx, sy) { const icx = (state.imgW*sx)/2; const icy = (state.imgH*sy)/2; const dx = x*sx - icx; const dy = y*sy - icy; const ca = Math.cos(state.imageRotation); const sa = Math.sin(state.imageRotation); return { cx: dx * ca - dy * sa + icx, cy: dx * sa + dy * ca + icy }; }
 function getPos(e, canvas) { const rect = canvas.getBoundingClientRect(); const scX = (e.clientX - rect.left) * (canvas.width / rect.width); const scY = (e.clientY - rect.top) * (canvas.height / rect.height); const z = state.view.zoom; let x = (scX - state.view.dx) / z, y = (scY - state.view.dy) / z; const sx = canvas.width / state.imgW; const icx = (state.imgW*sx)/2, icy = (state.imgH*sx)/2; let dx = x - icx, dy = y - icy; const sa = Math.sin(-state.imageRotation), ca = Math.cos(-state.imageRotation); return { x: ((dx * ca - dy * sa) + icx) / sx, y: ((dx * sa + dy * ca) + icy) / sx, scX, scY, cx: x, cy: y }; }
+function getDist(pts) { return Math.sqrt((pts[0].x-pts[1].x)**2 + (pts[0].y-pts[1].y)**2); }
+function getMid(pts) { return { x: (pts[0].x+pts[1].x)/2, y: (pts[0].y+pts[1].y)/2 }; }
 
-function handleMouseDown(e) {
+function handlePointerDown(e) {
   const cv = $('canvas-main'); cv.setPointerCapture(e.pointerId);
+  state.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (state.activePointers.size === 2) {
+    const pts = [...state.activePointers.values()];
+    state.lastPinchDist = getDist(pts); state.lastMidpoint = getMid(pts);
+    return;
+  }
   const p = getPos(e, cv); state.dragStart = p; state.mStart = { x: e.clientX, y: e.clientY }; const sx = cv.width / state.imgW;
   if (state.activeTool === 'select' || state.activeTool === 'pan') {
     const mHit = state.spottingMarks.find(m => Math.sqrt((p.x-m.x)**2 + (p.y-m.y)**2) < 12);
@@ -337,7 +354,17 @@ function handleMouseDown(e) {
   render();
 }
 
-function handleMouseMove(e) {
+function handlePointerMove(e) {
+  if (!state.activePointers.has(e.pointerId)) return;
+  state.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (state.activePointers.size === 2) {
+    const pts = [...state.activePointers.values()]; const d = getDist(pts); const mid = getMid(pts);
+    const zoomFactor = d / state.lastPinchDist;
+    const oldZoom = state.view.zoom; state.view.zoom = Math.min(20, Math.max(0.1, state.view.zoom * zoomFactor));
+    state.view.dx += (mid.x - state.lastMidpoint.x) - (mid.x - state.view.dx) * (state.view.zoom/oldZoom - 1);
+    state.view.dy += (mid.y - state.lastMidpoint.y) - (mid.y - state.view.dy) * (state.view.zoom/oldZoom - 1);
+    state.lastPinchDist = d; state.lastMidpoint = mid; render(); return;
+  }
   if (!state.dragStart) return; const p = getPos(e, $('canvas-main'));
   if (state.isPanning) { state.view.dx = state.viewStart.dx+(e.clientX-state.mStart.x); state.view.dy = state.viewStart.dy+(e.clientY-state.mStart.y); }
   else if (state.isRotating) { state.imageRotation = state.rotateStart + (e.clientX-state.mStart.x)*0.002; }
@@ -349,7 +376,11 @@ function handleMouseMove(e) {
   render();
 }
 
-function handleMouseUp() { if (state.activeTool === 'roi' && state.roiRect && Math.abs(state.roiRect.w) > 5) applyCrop(); if(state.editingField) autoSave(); state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; }
+function handlePointerUp(e) { 
+    state.activePointers.delete(e.pointerId); if (state.activePointers.size < 2) { state.lastPinchDist = 0; state.lastMidpoint = null; }
+    if (state.activeTool === 'roi' && state.roiRect && Math.abs(state.roiRect.w) > 5) applyCrop(); 
+    if(state.editingField) autoSave(); state.dragStart = null; state.isPanning = false; state.isRotating = false; state.editingField = null; 
+}
 function handleDblClick() { if (state.activeTool === 'rotate_img') { saveState(); state.imageRotation += Math.PI / 2; render(); autoSave(); } }
 function handleWheel(e) { e.preventDefault(); const p = getPos(e, $('canvas-main')); const d = e.deltaY > 0 ? 0.9 : 1.1; const old = state.view.zoom; state.view.zoom = Math.min(20, Math.max(0.1, state.view.zoom * d)); state.view.dx -= (p.scX - state.view.dx) * (state.view.zoom/old - 1); state.view.dy -= (p.scY - state.view.dy) * (state.view.zoom/old - 1); render(); }
 
