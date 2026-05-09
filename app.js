@@ -13,11 +13,10 @@ const state = {
   chartView: { zoom: 1, offset: 0 },
   polarityMode: 'default',
   roiRect: null,
-  isDraggingPeak: null, isDraggingBound: null, isPanningChart: null,
+  isDraggingPeak: null, isDraggingBound: null, isPanningChart: null, isZoomingChart: null,
   deferredPrompt: null,
   activePointers: new Map(), lastPinchDist: 0, lastMidpoint: null,
-  profileTool: 'pan', // 'pan' or 'edit'
-  longPressTimeout: null
+  profileTool: 'nav-pan'
 };
 
 const $ = id => document.getElementById(id);
@@ -42,14 +41,22 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
     cv.oncontextmenu = e => e.preventDefault();
     
-    $('btn-edit-peaks').onclick = () => {
-        state.profileTool = state.profileTool === 'edit' ? 'pan' : 'edit';
-        $('btn-edit-peaks').classList.toggle('active', state.profileTool === 'edit');
-        renderProfiles();
-    };
+    $('btn-edit-peaks').onclick = () => { $('menu-view').classList.add('hidden'); $('menu-edit').classList.toggle('hidden'); };
+    $('btn-reset-view').onclick = () => { $('menu-edit').classList.add('hidden'); $('menu-view').classList.toggle('hidden'); };
+    
+    document.querySelectorAll('.sub-item').forEach(btn => {
+        btn.onclick = (e) => {
+            const mode = btn.dataset.pmode;
+            if (mode === 'nav-1to1') { state.chartView = { zoom: 1, offset: 0 }; renderProfiles(); }
+            else { state.profileTool = mode; }
+            document.querySelectorAll('.sub-item').forEach(b => b.classList.toggle('active', b.dataset.pmode === state.profileTool));
+            btn.parentElement.classList.add('hidden');
+            e.stopPropagation();
+        };
+    });
+
     $('btn-clear-peaks').onclick = () => { if(state.activeLane) { saveState(); state.activeLane.peaks = []; renderProfiles(); renderTable(); render(); autoSave(); } };
     $('btn-reset-integ').onclick = () => updateDensitograms(true);
-    $('btn-reset-view').onclick = () => { state.chartView = { zoom: 1, offset: 0 }; renderProfiles(); };
     $('btn-export-lane').onclick = () => exportReport();
     $('btn-full-report').onclick = () => exportReport('all');
     
@@ -266,13 +273,9 @@ function renderProfiles() {
     });
     ctx.restore(); ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center'; ctx.fillStyle = '#8b949e'; ctx.fillText('ORIGIN (0.0)', PAD_L, cv.height - 15); ctx.fillText('FRONT (1.0)', cv.width - PAD_R, cv.height - 15);
     
-    let chartPointers = new Map(); let lastChartPinchDist = 0;
     cv.onpointerdown = (me) => {
         const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
-        cv.setPointerCapture(me.pointerId); chartPointers.set(me.pointerId, {x: me.clientX, y: me.clientY});
-        if (chartPointers.size === 2) { lastChartPinchDist = getDist([...chartPointers.values()]); return; }
-        if (chartPointers.size > 1) return;
-        
+        cv.setPointerCapture(me.pointerId);
         let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         let hitBound = null, hitApex = null;
         for(let pk of (l.peaks||[])) {
@@ -280,52 +283,21 @@ function renderProfiles() {
             if (Math.abs(mx - px) < 20) hitApex = pk; else if (Math.abs(mx - lb_x) < 15) hitBound = {pk, type: 'lb'}; else if (Math.abs(mx - rb_x) < 15) hitBound = {pk, type: 'rb'};
         }
 
-        if (state.profileTool === 'edit') {
-            // Long press for deletion
-            state.longPressTimeout = setTimeout(() => {
-                if (hitApex) { saveState(); l.peaks = l.peaks.filter(pk => pk !== hitApex); renderProfiles(); renderTable(); render(); autoSave(); }
-            }, 700);
-
-            if (hitApex) { saveState(); state.isDraggingPeak = hitApex; return; }
-            if (hitBound) { saveState(); state.isDraggingBound = hitBound; return; }
-            saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' });
-            renderProfiles(); renderTable(); render(); autoSave();
-        } else {
-            // Default: Pan if zoomed
-            if (z > 1) { state.isPanningChart = { startX: mx, startOff: off }; }
-        }
+        if (state.profileTool === 'edit-add') { saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' }); renderProfiles(); renderTable(); render(); autoSave(); }
+        else if (state.profileTool === 'edit-move') { if (hitApex) { saveState(); state.isDraggingPeak = hitApex; } else if (hitBound) { saveState(); state.isDraggingBound = hitBound; } }
+        else if (state.profileTool === 'edit-delete') { if (hitApex) { saveState(); l.peaks = l.peaks.filter(pk => pk !== hitApex); renderProfiles(); renderTable(); render(); autoSave(); } }
+        else if (state.profileTool === 'nav-zoom') { state.isZoomingChart = { startX: mx, startZ: z }; }
+        else if (state.profileTool === 'nav-pan') { if (z > 1) { state.isPanningChart = { startX: mx, startOff: off }; } }
     };
     cv.onpointermove = (me) => {
         const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
-        if (chartPointers.has(me.pointerId)) chartPointers.set(me.pointerId, {x: me.clientX, y: me.clientY});
-        if (chartPointers.size === 2) {
-            if (state.longPressTimeout) { clearTimeout(state.longPressTimeout); state.longPressTimeout = null; }
-            const d = getDist([...chartPointers.values()]);
-            if (Math.abs(d - lastChartPinchDist) > 5) {
-                const zoomFactor = d > lastChartPinchDist ? 1.05 : 0.95;
-                state.chartView.zoom = Math.max(1, state.chartView.zoom * zoomFactor);
-                if (state.chartView.zoom === 1) state.chartView.offset = 0;
-                lastChartPinchDist = d; renderProfiles();
-            }
-            return;
-        }
-        if (state.longPressTimeout && Math.abs(me.clientX - chartPointers.get(me.pointerId).x) > 10) { clearTimeout(state.longPressTimeout); state.longPressTimeout = null; }
-        
         let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
-        if (state.isDraggingBound) { const {pk, type} = state.isDraggingBound; if (type === 'lb') pk.lb = Math.min(pk.rb - 1, Math.max(0, idx)); else if (type === 'rb') pk.rb = Math.max(pk.lb + 1, Math.min(p.length-1, idx)); pk.manual = true; renderProfiles(); renderTable(); render(); return; }
-        if (state.isDraggingPeak) { 
-            const dIdx = idx - state.isDraggingPeak.idx;
-            state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length);
-            state.isDraggingPeak.lb = Math.max(0, state.isDraggingPeak.lb + dIdx);
-            state.isDraggingPeak.rb = Math.min(p.length-1, state.isDraggingPeak.rb + dIdx);
-            renderProfiles(); renderTable(); render(); return; 
-        }
-        if (state.isPanningChart) { const dx = (mx - state.isPanningChart.startX) / plotW; state.chartView.offset = Math.min(0, Math.max(1 - z, state.isPanningChart.startOff + dx)); renderProfiles(); }
+        if (state.isDraggingBound) { const {pk, type} = state.isDraggingBound; if (type === 'lb') pk.lb = Math.min(pk.rb - 1, Math.max(0, idx)); else if (type === 'rb') pk.rb = Math.max(pk.lb + 1, Math.min(p.length-1, idx)); pk.manual = true; renderProfiles(); renderTable(); render(); }
+        else if (state.isDraggingPeak) { const dIdx = idx - state.isDraggingPeak.idx; state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); state.isDraggingPeak.lb = Math.max(0, state.isDraggingPeak.lb + dIdx); state.isDraggingPeak.rb = Math.min(p.length-1, state.isDraggingPeak.rb + dIdx); renderProfiles(); renderTable(); render(); }
+        else if (state.isPanningChart) { const dx = (mx - state.isPanningChart.startX) / plotW; state.chartView.offset = Math.min(0, Math.max(1 - z, state.isPanningChart.startOff + dx)); renderProfiles(); }
+        else if (state.isZoomingChart) { const dx = (mx - state.isZoomingChart.startX) / 50; state.chartView.zoom = Math.max(1, state.isZoomingChart.startZ + dx); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); }
     };
-    cv.onpointerup = (me) => { 
-        chartPointers.delete(me.pointerId); if (state.longPressTimeout) { clearTimeout(state.longPressTimeout); state.longPressTimeout = null; }
-        if(state.isDraggingPeak || state.isDraggingBound || state.isPanningChart) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; state.isPanningChart = null; 
-    };
+    cv.onpointerup = () => { if(state.isDraggingPeak || state.isDraggingBound || state.isPanningChart || state.isZoomingChart) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; state.isPanningChart = null; state.isZoomingChart = null; };
     cv.onwheel = e => { e.preventDefault(); state.chartView.zoom = Math.max(1, state.chartView.zoom * (e.deltaY > 0 ? 0.9 : 1.1)); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); };
 }
 

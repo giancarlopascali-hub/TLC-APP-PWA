@@ -128,6 +128,22 @@
         .integration-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
         .integration-table th { text-align: left; color: var(--text-dim); padding: 8px; border-bottom: 2px solid var(--border-color); }
         .integration-table td { padding: 8px; border-bottom: 1px solid var(--border-color); font-family: monospace; }
+
+        /* Submenus */
+        .tool-group { position: relative; }
+        .submenu {
+            position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            background: var(--sidebar-bg); border: 1px solid var(--border-color); border-radius: 8px;
+            display: flex; flex-direction: column; padding: 5px; gap: 5px; z-index: 100;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5); margin-bottom: 10px;
+        }
+        .submenu.hidden { display: none; }
+        .sub-item {
+            background: transparent; border: none; color: white; padding: 8px 15px;
+            font-size: 0.8rem; font-weight: 600; white-space: nowrap; text-align: left;
+            border-radius: 4px;
+        }
+        .sub-item.active { background: var(--accent-color); }
     </style>
 </head>
 <body>
@@ -247,10 +263,24 @@
                 </div>
                 <!-- Toolbar for Profile -->
                 <div id="toolbar-profile" class="toolbar-content hidden">
-                    <button id="btn-edit-peaks" class="tool-item">✏️<span>Add/Mod</span></button>
+                    <div class="tool-group">
+                        <button id="btn-edit-peaks" class="tool-item">✏️<span>Add/Mod</span></button>
+                        <div id="menu-edit" class="submenu hidden">
+                            <button class="sub-item" data-pmode="edit-add">➕ Add</button>
+                            <button class="sub-item" data-pmode="edit-move">🖐️ Move</button>
+                            <button class="sub-item" data-pmode="edit-delete">❌ Del</button>
+                        </div>
+                    </div>
                     <button id="btn-clear-peaks" class="tool-item">🗑️<span>Clear</span></button>
                     <button id="btn-reset-integ" class="tool-item">🔄<span>Reset</span></button>
-                    <button id="btn-reset-view" class="tool-item">🔍<span>Fit</span></button>
+                    <div class="tool-group">
+                        <button id="btn-reset-view" class="tool-item">🔍<span>Fit</span></button>
+                        <div id="menu-view" class="submenu hidden">
+                            <button class="sub-item" data-pmode="nav-zoom">🔭 Zoom</button>
+                            <button class="sub-item" data-pmode="nav-pan">🖐️ Pan</button>
+                            <button class="sub-item" data-pmode="nav-1to1">📏 1:1</button>
+                        </div>
+                    </div>
                     <button id="btn-export-lane" class="tool-item">📄<span>Export</span></button>
                     <button id="btn-full-report" class="tool-item">📚<span>Full</span></button>
                 </div>
