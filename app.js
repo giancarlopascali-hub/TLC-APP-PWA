@@ -319,6 +319,7 @@ function renderProfiles() {
         else if (state.isDraggingPeak) { 
             state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); 
             const {lb, rb} = findBoundaries(p, idx); state.isDraggingPeak.lb = lb; state.isDraggingPeak.rb = rb;
+            state.isDraggingPeak.manual = true;
             renderProfiles(); renderTable(); render(); 
         }
         else if (state.isPanningChart) { const dx = (mx - state.isPanningChart.startX) / plotW; state.chartView.offset = Math.min(0, Math.max(1 - z, state.isPanningChart.startOff + dx)); renderProfiles(); }
@@ -460,6 +461,18 @@ async function exportReport(type = null) {
     for (let l of lanesToExport) {
         const laneStrip = document.createElement('canvas'); laneStrip.width = l.h; laneStrip.height = l.w; 
         const sctx = laneStrip.getContext('2d'); sctx.save(); sctx.translate(l.h/2, l.w/2); sctx.rotate(Math.PI/2 - l.angle); sctx.drawImage(img, -l.cx, -l.cy); sctx.restore();
+        
+        // Add colored banding to lane strip
+        const n = (l.profile || []).length;
+        if (n > 1) {
+            l.peaks.forEach(pk => {
+                const x_start = ((n - 1 - pk.rb) / (n - 1)) * l.h;
+                const x_end = ((n - 1 - pk.lb) / (n - 1)) * l.h;
+                sctx.fillStyle = pk.manual ? 'rgba(227, 76, 38, 0.4)' : 'rgba(255, 215, 0, 0.4)';
+                sctx.fillRect(x_start, 0, x_end - x_start, l.w);
+            });
+        }
+
         const hiResChart = document.createElement('canvas'); hiResChart.width = 1600; hiResChart.height = 800;
         const hctx = hiResChart.getContext('2d'); hctx.fillStyle = '#fff'; hctx.fillRect(0,0,1600,800);
         const padL = 80, padR = 80, padT = 100, padB = 100; const pw = 1600-padL-padR, ph = 800-padT-padB;
