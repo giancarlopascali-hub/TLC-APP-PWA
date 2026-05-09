@@ -431,7 +431,25 @@ async function applyCrop() {
 }
 
 function saveState() { state.undoStack.push(JSON.stringify({ lines: state.lines, spottingMarks: state.spottingMarks, lanes: state.lanes, rotation: state.imageRotation, img: state.imgB64, w: state.imgW, h: state.imgH })); if (state.undoStack.length > 50) state.undoStack.shift(); }
-function undo() { if (state.undoStack.length === 0) return; const s = JSON.parse(state.undoStack.pop()); state.lines = s.lines; state.spottingMarks = s.spottingMarks; state.lanes = s.lanes; state.imageRotation = s.rotation; if (state.imgB64 !== s.img) { state.imgB64 = s.img; state.imgW = s.w; state.imgH = s.h; const img = new Image(); img.onload = () => { state.imgEl = img; render(); }; img.src = s.img; } renderProfiles(); renderTable(); render(); autoSave(); }
+function undo() { 
+    if (state.undoStack.length === 0) return; 
+    const activeLaneId = state.activeLane ? state.activeLane.id : null;
+    const activeMarkIdx = state.activeMark ? state.spottingMarks.indexOf(state.activeMark) : -1;
+    const activeLineIdx = state.activeLine ? state.lines.indexOf(state.activeLine) : -1;
+
+    const s = JSON.parse(state.undoStack.pop()); 
+    state.lines = s.lines; state.spottingMarks = s.spottingMarks; state.lanes = s.lanes; state.imageRotation = s.rotation; 
+    
+    if (activeLaneId) state.activeLane = state.lanes.find(l => l.id === activeLaneId) || state.lanes[0] || null;
+    if (activeMarkIdx !== -1) state.activeMark = state.spottingMarks[activeMarkIdx];
+    if (activeLineIdx !== -1) state.activeLine = state.lines[activeLineIdx];
+
+    if (state.imgB64 !== s.img) { 
+        state.imgB64 = s.img; state.imgW = s.w; state.imgH = s.h; 
+        const img = new Image(); img.onload = () => { state.imgEl = img; render(); }; img.src = s.img; 
+    } 
+    renderProfiles(); renderTable(); render(); autoSave(); 
+}
 function resetWorkspace() { saveState(); state.lines = []; state.spottingMarks = []; state.lanes = []; state.imageRotation = 0; state.view = { zoom: 1, dx: 0, dy: 0 }; if (state.originalB64) { state.imgB64 = state.originalB64; const img = new Image(); img.onload = () => { state.imgEl = img; state.imgW = img.naturalWidth; state.imgH = img.naturalHeight; render(); }; img.src = state.imgB64; } renderProfiles(); renderTable(); render(); autoSave(); }
 
 function autoSave() { localStorage.setItem('tlc_project', JSON.stringify({ lines: state.lines, spottingMarks: state.spottingMarks, lanes: state.lanes, rotation: state.imageRotation, img: state.imgB64, w: state.imgW, h: state.imgH })); }
