@@ -466,8 +466,8 @@ async function exportReport(type = null) {
         const n = (l.profile || []).length;
         if (n > 1) {
             l.peaks.forEach(pk => {
-                const x_start = ((n - 1 - pk.rb) / (n - 1)) * l.h;
-                const x_end = ((n - 1 - pk.lb) / (n - 1)) * l.h;
+                const x_start = (pk.lb / (n - 1)) * l.h;
+                const x_end = (pk.rb / (n - 1)) * l.h;
                 sctx.fillStyle = pk.manual ? 'rgba(227, 76, 38, 0.4)' : 'rgba(255, 215, 0, 0.4)';
                 sctx.fillRect(x_start, 0, x_end - x_start, l.w);
             });
