@@ -243,6 +243,24 @@ async function updateDensitograms(detectPeaks = false) {
   } catch(e) { console.error(e); }
 }
 
+function findBoundaries(profile, apexIdx) {
+    const threshold = parseFloat($('peak-width').value || 10) / 100.0;
+    const baseline = Math.min(...profile);
+    const peakSignal = profile[apexIdx] - baseline;
+    let lb = apexIdx, rb = apexIdx;
+    while (lb > 0) {
+        if (profile[lb-1] > profile[lb]) break;
+        if ((profile[lb-1] - baseline) < peakSignal * threshold) break;
+        lb--;
+    }
+    while (rb < profile.length - 1) {
+        if (profile[rb+1] > profile[rb]) break;
+        if ((profile[rb+1] - baseline) < peakSignal * threshold) break;
+        rb++;
+    }
+    return {lb, rb};
+}
+
 function renderProfiles() {
     const list = $('densitogram-list'); if (!list) return;
     list.innerHTML = ''; if (!state.activeLane) { list.innerHTML = `<div class="empty-state">Select a lane to view analysis</div>`; return; }
@@ -283,19 +301,35 @@ function renderProfiles() {
             if (Math.abs(mx - px) < 20) hitApex = pk; else if (Math.abs(mx - lb_x) < 15) hitBound = {pk, type: 'lb'}; else if (Math.abs(mx - rb_x) < 15) hitBound = {pk, type: 'rb'};
         }
 
-        if (state.profileTool === 'edit-add') { saveState(); const rf = calculateRf(idx, p.length); l.peaks.push({ idx, rf, height: p[idx], area: 10, lb: Math.max(0, idx-5), rb: Math.min(p.length-1, idx+5), manual: true, type: 'N' }); renderProfiles(); renderTable(); render(); autoSave(); }
+        if (state.profileTool === 'edit-add') { 
+            saveState(); const rf = calculateRf(idx, p.length); 
+            const {lb, rb} = findBoundaries(p, idx);
+            l.peaks.push({ idx, rf, height: p[idx], area: 10, lb, rb, manual: true, type: 'N' }); 
+            renderProfiles(); renderTable(); render(); autoSave(); 
+        }
         else if (state.profileTool === 'edit-move') { if (hitApex) { saveState(); state.isDraggingPeak = hitApex; } else if (hitBound) { saveState(); state.isDraggingBound = hitBound; } }
         else if (state.profileTool === 'edit-delete') { if (hitApex) { saveState(); l.peaks = l.peaks.filter(pk => pk !== hitApex); renderProfiles(); renderTable(); render(); autoSave(); } }
-        else if (state.profileTool === 'nav-zoom') { state.isZoomingChart = { startX: mx, startZ: z }; }
+        else if (state.profileTool === 'nav-zoom') { state.isZoomingChart = { startX: mx, startZ: z, startIdx: idx }; }
         else if (state.profileTool === 'nav-pan') { if (z > 1) { state.isPanningChart = { startX: mx, startOff: off }; } }
     };
     cv.onpointermove = (me) => {
         const mrect = cv.getBoundingClientRect(); const mx = me.clientX - mrect.left;
         let idx = Math.round((((mx - PAD_L) / plotW) - off) / z * (p.length - 1)); idx = Math.max(0, Math.min(p.length-1, idx));
         if (state.isDraggingBound) { const {pk, type} = state.isDraggingBound; if (type === 'lb') pk.lb = Math.min(pk.rb - 1, Math.max(0, idx)); else if (type === 'rb') pk.rb = Math.max(pk.lb + 1, Math.min(p.length-1, idx)); pk.manual = true; renderProfiles(); renderTable(); render(); }
-        else if (state.isDraggingPeak) { const dIdx = idx - state.isDraggingPeak.idx; state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); state.isDraggingPeak.lb = Math.max(0, state.isDraggingPeak.lb + dIdx); state.isDraggingPeak.rb = Math.min(p.length-1, state.isDraggingPeak.rb + dIdx); renderProfiles(); renderTable(); render(); }
+        else if (state.isDraggingPeak) { 
+            state.isDraggingPeak.idx = idx; state.isDraggingPeak.height = p[idx]; state.isDraggingPeak.rf = calculateRf(idx, p.length); 
+            const {lb, rb} = findBoundaries(p, idx); state.isDraggingPeak.lb = lb; state.isDraggingPeak.rb = rb;
+            renderProfiles(); renderTable(); render(); 
+        }
         else if (state.isPanningChart) { const dx = (mx - state.isPanningChart.startX) / plotW; state.chartView.offset = Math.min(0, Math.max(1 - z, state.isPanningChart.startOff + dx)); renderProfiles(); }
-        else if (state.isZoomingChart) { const dx = (mx - state.isZoomingChart.startX) / 50; state.chartView.zoom = Math.max(1, state.isZoomingChart.startZ + dx); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); }
+        else if (state.isZoomingChart) { 
+            const dx = (mx - state.isZoomingChart.startX) / 50; 
+            const newZ = Math.max(1, state.isZoomingChart.startZ + dx);
+            state.chartView.zoom = newZ;
+            state.chartView.offset = (state.isZoomingChart.startX - PAD_L)/plotW - (state.isZoomingChart.startIdx/(p.length-1)) * newZ;
+            if (state.chartView.zoom === 1) state.chartView.offset = 0; 
+            renderProfiles(); 
+        }
     };
     cv.onpointerup = () => { if(state.isDraggingPeak || state.isDraggingBound || state.isPanningChart || state.isZoomingChart) autoSave(); state.isDraggingPeak = null; state.isDraggingBound = null; state.isPanningChart = null; state.isZoomingChart = null; };
     cv.onwheel = e => { e.preventDefault(); state.chartView.zoom = Math.max(1, state.chartView.zoom * (e.deltaY > 0 ? 0.9 : 1.1)); if (state.chartView.zoom === 1) state.chartView.offset = 0; renderProfiles(); };
