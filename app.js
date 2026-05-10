@@ -207,14 +207,29 @@ function findLanes() {
         const {o, f} = bestPair; const o_pos = getImageCanvasPos(o.cx, o.cy, sx, sx); const f_pos = getImageCanvasPos(f.cx, f.cy, sx, sx);
         const buddies = state.spottingMarks.filter(bm => {
             const bm_pos = getImageCanvasPos(bm.x, bm.y, sx, sx);
-            const bBest = pairs.reduce((b, c) => { const b_o = getImageCanvasPos(b.o.cx, b.o.cy, sx, sx); const c_o = getImageCanvasPos(c.o.cx, c.o.cy, sx, sx); return Math.abs(bm_pos.cx - c_o.cx) < Math.abs(bm_pos.cx - b_o.cx) ? c : b; }, pairs[0]);
+            const bBest = pairs.reduce((b, c) => { 
+                const b_o = getImageCanvasPos(b.o.cx, b.o.cy, sx, sx); 
+                const c_o = getImageCanvasPos(c.o.cx, c.o.cy, sx, sx); 
+                return Math.abs(bm_pos.cx - c_o.cx) < Math.abs(bm_pos.cx - b_o.cx) ? c : b; 
+            }, pairs[0]);
             return bBest === bestPair;
         }).sort((a,b) => getImageCanvasPos(a.x, a.y, sx, sx).cx - getImageCanvasPos(b.x, b.y, sx, sx).cx);
-        let laneWCanvas = 35 * sx;
-        if (buddies.length > 1) {
-            let minDist = Infinity; for(let i=0; i<buddies.length-1; i++) minDist = Math.min(minDist, getImageCanvasPos(buddies[i+1].x, buddies[i+1].y, sx, sx).cx - getImageCanvasPos(buddies[i].x, buddies[i].y, sx, sx).cx);
-            laneWCanvas = Math.min(35 * sx, minDist * 0.85);
+
+        const lineWCanvas = Math.max(bestPair.o.w, bestPair.f.w) * sx;
+        let laneWCanvas;
+        if (buddies.length === 1) {
+            laneWCanvas = lineWCanvas * 0.75;
+        } else {
+            const m_idx = buddies.indexOf(m);
+            const m_cx = getImageCanvasPos(m.x, m.y, sx, sx).cx;
+            let d1 = Infinity, d2 = Infinity;
+            if (m_idx > 0) d1 = m_cx - getImageCanvasPos(buddies[m_idx-1].x, buddies[m_idx-1].y, sx, sx).cx;
+            if (m_idx < buddies.length - 1) d2 = getImageCanvasPos(buddies[m_idx+1].x, buddies[m_idx+1].y, sx, sx).cx - m_cx;
+            laneWCanvas = Math.min(d1, d2);
+            if (laneWCanvas === Infinity) laneWCanvas = lineWCanvas / buddies.length; // Fallback
+            laneWCanvas *= 0.95; // Small gap to prevent overlap
         }
+
         const hImg = Math.abs(o_pos.cy - f_pos.cy) * 1.10 / sx; const icx = (state.imgW*sx)/2; const icy = (state.imgH*sx)/2;
         const ca = Math.cos(-state.imageRotation); const sa = Math.sin(-state.imageRotation);
         const rx = (m_pos.cx - icx) * ca - ((o_pos.cy+f_pos.cy)/2 - icy) * sa; const ry = (m_pos.cx - icx) * sa + ((o_pos.cy+f_pos.cy)/2 - icy) * ca;
