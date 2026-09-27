@@ -1,0 +1,12 @@
+# Retained Hugging Face Docker/Flask fallback only.
+# Keep this file separate from requirements.txt: Streamlit Community Cloud uses
+# the latter and must not carry the deprecated Flask transport runtime.
+Flask==3.1.3
+Werkzeug==3.1.6
+flask-cors==6.0.2
+numpy==2.2.6
+Pillow==12.3.0
+opencv-python-headless==4.13.0.92
+scipy==1.14.1
+scikit-image==0.26.0
+gunicorn==22.0.0

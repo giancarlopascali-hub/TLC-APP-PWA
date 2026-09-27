@@ -8,7 +8,7 @@ Server also serves index.html / app.js directly (no separate http.server needed)
 Open: http://localhost:5050
 """
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, abort, request, jsonify, send_from_directory
 from flask_cors import CORS
 import numpy as np
 import base64
@@ -23,6 +23,21 @@ app = Flask(__name__)
 CORS(app)
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# The retained Hugging Face fallback needs only these root files.  Do not turn
+# the application directory into a generic download endpoint while the fallback
+# remains public: source files, deployment metadata, dotfiles, and the new
+# Streamlit component must stay inaccessible from this route.
+LEGACY_PUBLIC_ASSETS = frozenset({
+    'app.js',
+    'favicon.ico',
+    'guide.html',
+    'icon.svg',
+    'index.css',
+    'index.html',
+    'manifest.json',
+    'sw.js',
+})
+
 # ── Static file serving ───────────────────────────────────────────────────────
 @app.route('/')
 def index():
@@ -30,6 +45,8 @@ def index():
 
 @app.route('/<path:filename>')
 def static_files(filename):
+    if filename not in LEGACY_PUBLIC_ASSETS:
+        abort(404)
     return send_from_directory(STATIC_DIR, filename)
 
 @app.route('/detect/crop', methods=['POST'])

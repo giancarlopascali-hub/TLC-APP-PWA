@@ -1,9 +1,8 @@
-Flask==2.2.3
-Werkzeug==2.2.3
-flask-cors
-opencv-python-headless
-numpy
-scikit-image
-scipy
-Pillow
-gunicorn
+# Streamlit mobile candidate dependencies, pinned after Python 3.11 verification.
+# The legacy Hugging Face/Flask fallback has its own requirements-legacy.txt so
+# it cannot be installed accidentally by Streamlit Community Cloud.
+streamlit==1.55.0
+numpy==2.2.6
+Pillow==12.3.0
+opencv-python-headless==4.13.0.92
+scipy==1.14.1
