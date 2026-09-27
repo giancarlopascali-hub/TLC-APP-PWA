@@ -19,7 +19,10 @@ export async function handleFile(file) {
     const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     canvas.getContext('2d').drawImage(image, 0, 0, width, height);
     const dataUrl = canvas.toDataURL('image/jpeg', .9);
-    setImage(dataUrl, { original: dataUrl, clearAnnotations: true });
+    // Loading the decoded canvas image is asynchronous.  Rendering before it
+    // resolves leaves the workspace blank until a later interaction redraws
+    // the canvas (for example, a pinch-to-zoom gesture).
+    await setImage(dataUrl, { original: dataUrl, clearAnnotations: true });
     $('view-landing')?.classList.add('hidden'); $('view-workspace')?.classList.remove('hidden');
     persistAndRender(); setStatus('Image loaded. Mark origin and solvent-front lines to continue.', 'success');
   } catch (error) { setStatus(error.message || 'The image could not be loaded.', 'error'); }

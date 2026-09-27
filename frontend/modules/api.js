@@ -9,6 +9,43 @@ const profileSettingsByRequest = new Map();
 const handlers = { profiles: null, crop: null, error: null, activity: null };
 let queuedProfiles = null;
 let profileTimer = null;
+const PENDING_REQUESTS_STORAGE_KEY = 'aq_tlc_mobile_pending_requests_v1';
+
+// A Streamlit rerun can recreate the component iframe between sending a
+// request and receiving its reply.  Keep only correlation metadata in session
+// storage so the reply still reaches the restored workspace; the image data
+// remains in the request/response channel and is never duplicated here.
+function loadPendingRequests() {
+  try {
+    const value = JSON.parse(window.sessionStorage?.getItem(PENDING_REQUESTS_STORAGE_KEY) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch { return {}; }
+}
+
+function savePendingRequests(value) {
+  try { window.sessionStorage?.setItem(PENDING_REQUESTS_STORAGE_KEY, JSON.stringify(value)); } catch { /* Storage is optional. */ }
+}
+
+function pendingRequest(action) {
+  const value = loadPendingRequests()[action];
+  return value && typeof value === 'object' && typeof value.request_id === 'string' ? value : null;
+}
+
+function rememberPendingRequest(action, requestId, payload) {
+  const pending = loadPendingRequests();
+  pending[action] = {
+    request_id: requestId,
+    ...(action === 'generate_profiles' ? { peak_threshold: Number(payload?.peak_threshold ?? 50) } : {}),
+  };
+  savePendingRequests(pending);
+}
+
+function forgetPendingRequest(action, requestId) {
+  const pending = loadPendingRequests();
+  if (pending[action]?.request_id !== requestId) return;
+  delete pending[action];
+  savePendingRequests(pending);
+}
 
 export function registerApiHandlers(nextHandlers) {
   Object.assign(handlers, nextHandlers);
@@ -35,13 +72,18 @@ function handleResponse(response) {
   if (!response || typeof response !== 'object') return;
   const action = String(response.action || '').replace(/_result$/, '');
   const id = String(response.request_id ?? '');
-  if (!action || !id || latestRequestByAction.get(action) !== id) return;
+  const persistedRequest = pendingRequest(action);
+  const currentId = latestRequestByAction.get(action) || persistedRequest?.request_id;
+  if (!action || !id || currentId !== id) return;
   if (deliveredRequestByAction.get(action) === id) return;
   deliveredRequestByAction.set(action, id);
-  const profileSettings = action === 'generate_profiles' ? profileSettingsByRequest.get(id) : null;
+  const profileSettings = action === 'generate_profiles'
+    ? profileSettingsByRequest.get(id) || persistedRequest
+    : null;
   // Context includes a base64 image, so remove it for both success and error
   // responses as soon as this response is current and handled.
   if (action === 'generate_profiles') profileSettingsByRequest.delete(id);
+  forgetPendingRequest(action, id);
   handlers.activity?.(action, false);
   if (response.protocol_version !== PROTOCOL_VERSION || response.ok !== true) {
     emitError(response.error || { message: 'The analysis service returned an invalid response.' });
@@ -79,6 +121,7 @@ function dispatch(action, payload, id = requestId(action)) {
     return null;
   }
   latestRequestByAction.set(action, id);
+  rememberPendingRequest(action, id, payload);
   handlers.activity?.(action, true);
   const envelope = { protocol_version: PROTOCOL_VERSION, action, request_id: id, payload };
   stSend(envelope);
@@ -102,6 +145,7 @@ export function requestProfiles(payload, { coalesce = true } = {}) {
   // pressure on a phone.
   profileSettingsByRequest.clear();
   profileSettingsByRequest.set(id, payload);
+  rememberPendingRequest('generate_profiles', id, payload);
   queuedProfiles = { payload, id };
   handlers.activity?.('generate_profiles', true);
   if (!coalesce) {

@@ -12,7 +12,9 @@
     window.__aqTlcRenderQueue = window.__aqTlcRenderQueue || [];
     window.addEventListener('message', function (event) {
       var message = event.data;
-      if (window.__aqTlcBridgeLive || event.source !== window.parent || !message || !message.isStreamlitMessage || message.type !== 'streamlit:render') return;
+      // Streamlit identifies messages sent *to* its host with
+      // `isStreamlitMessage`, but replies to a component only use the type.
+      if (window.__aqTlcBridgeLive || event.source !== window.parent || !message || message.type !== 'streamlit:render') return;
       window.__aqTlcRenderQueue.push(message.args || {});
     });
     if (window.parent !== window) { window.__aqTlcReadySent = true; window.parent.postMessage({ isStreamlitMessage: true, type: 'streamlit:componentReady', apiVersion: 1 }, '*'); }

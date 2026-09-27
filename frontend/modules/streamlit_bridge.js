@@ -1,6 +1,8 @@
 /**
  * Minimal Streamlit custom-component bridge.  Messages are accepted only from
- * the parent frame and only when they carry Streamlit's component marker.
+ * the parent frame.  Streamlit adds its component marker to messages it
+ * receives from a component, but its `streamlit:render` replies do not carry
+ * that marker.
  */
 
 function post(message) {
@@ -37,7 +39,7 @@ export function stOnRender(callback) {
 
 function receive(event) {
   const message = event.data;
-  if (event.source !== window.parent || !message?.isStreamlitMessage || message.type !== 'streamlit:render') return;
+  if (event.source !== window.parent || message?.type !== 'streamlit:render') return;
   const args = message.args || {};
   const callbacks = window.__aqTlcRenderCallbacks || [];
   if (callbacks.length === 0) {

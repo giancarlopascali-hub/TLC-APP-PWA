@@ -3,12 +3,17 @@ import test from 'node:test';
 
 const listeners = new Map();
 const outbound = [];
+const sessionStorageValues = new Map();
 const streamlitParent = {
   postMessage(message, targetOrigin) { outbound.push({ message, targetOrigin }); },
 };
 globalThis.window = {
   parent: streamlitParent,
   addEventListener(type, listener) { listeners.set(type, listener); },
+  sessionStorage: {
+    getItem(key) { return sessionStorageValues.get(key) ?? null; },
+    setItem(key, value) { sessionStorageValues.set(key, String(value)); },
+  },
 };
 
 const { registerApiHandlers, requestCrop, requestProfiles } = await import('../../frontend/modules/api.js');
@@ -20,7 +25,10 @@ function sentRequests() {
 function deliver(response) {
   listeners.get('message')({
     source: streamlitParent,
-    data: { isStreamlitMessage: true, type: 'streamlit:render', args: { response } },
+    // Streamlit's replies do not include the marker used for component-to-host
+    // messages.  Keeping this fixture faithful prevents a silent response
+    // handling regression.
+    data: { type: 'streamlit:render', args: { response } },
   });
 }
 
@@ -91,4 +99,28 @@ test('a standalone component reports a nonmodal Streamlit-host error without sen
   assert.ok(errors.every(message => /Streamlit deployment/i.test(message)));
   assert.ok(activity.every(entry => entry.busy === false));
   window.parent = originalParent;
+});
+
+test('a profile reply survives a Streamlit iframe reload', async () => {
+  sessionStorageValues.clear();
+  window.__aqTlcRenderCallbacks = [];
+  const apiUrl = new URL('../../frontend/modules/api.js', import.meta.url);
+  const sender = await import(`${apiUrl.href}?request-sender=${Date.now()}`);
+  sender.registerApiHandlers({ profiles: () => {}, crop: () => {}, error: message => { throw new Error(message); }, activity: () => {} });
+  const start = sentRequests().length;
+  const requestId = sender.requestProfiles({ image: 'reload', peak_threshold: 35 }, { coalesce: false });
+  const request = sentRequests().slice(start).at(-1);
+  assert.equal(request.request_id, requestId);
+
+  // A Streamlit rerun can recreate the iframe, which discards the sender's
+  // module state but preserves sessionStorage for the component origin.
+  window.__aqTlcRenderCallbacks = [];
+  const receiver = await import(`${apiUrl.href}?request-receiver=${Date.now()}`);
+  const received = [];
+  receiver.registerApiHandlers({ profiles: result => received.push(result), crop: () => {}, error: message => { throw new Error(message); }, activity: () => {} });
+  deliver(profileResponse(request, 'restored'));
+
+  assert.equal(received.length, 1);
+  assert.equal(received[0].results[0].id, 'restored');
+  assert.equal(JSON.parse(sessionStorageValues.get('aq_tlc_mobile_pending_requests_v1')).generate_profiles, undefined);
 });
