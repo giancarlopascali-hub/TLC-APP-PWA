@@ -43,9 +43,6 @@
       <button id="btn-reset" class="ctrl-btn" type="button">🔄 <span>Reset</span></button>
       <button id="btn-undo" class="ctrl-btn" type="button">↩ <span>Undo</span></button>
       <button id="btn-settings" class="ctrl-btn" type="button">⚙ <span>Settings</span></button>
-      <button id="btn-export-project" class="ctrl-btn compact" type="button" title="Export project">⇧ <span>Project</span></button>
-      <button id="btn-import-project" class="ctrl-btn compact" type="button" title="Import project">⇩ <span>Project</span></button>
-      <input type="file" id="project-input" class="hidden" accept="application/json,.json">
     </div>
     <section class="ws-main">
       <nav class="tabs-nav" aria-label="Analysis views">
@@ -82,8 +79,8 @@
           <button id="btn-clear-peaks" class="tool-item" type="button">🗑<span>Clear</span></button>
           <button id="btn-reset-integ" class="tool-item" type="button">🔄<span>Detect</span></button>
           <div class="tool-group"><button id="btn-reset-view" class="tool-item" type="button">🔍<span>View</span></button><div id="menu-view" class="submenu hidden"><button class="sub-item" data-pmode="nav-zoom" type="button">🔭 Zoom</button><button class="sub-item active" data-pmode="nav-pan" type="button">🖐 Pan</button><button class="sub-item" data-pmode="nav-1to1" type="button">📏 Fit</button></div></div>
-          <button id="btn-export-lane" class="tool-item" type="button">📄<span>Lane</span></button>
-          <button id="btn-full-report" class="tool-item" type="button">📚<span>Full</span></button>
+          <button id="btn-export-lane" class="tool-item" type="button" title="Export this lane as a PDF report">📄<span>PDF lane</span></button>
+          <button id="btn-full-report" class="tool-item" type="button" title="Export all lanes as a PDF report">📚<span>PDF all</span></button>
         </div>
         <div id="toolbar-table" class="toolbar-content hidden" aria-label="Quantitation modes">
           <button class="mode-item active" data-imode="relative" type="button">Rel. %</button><button class="mode-item" data-imode="calibration" type="button">Calib.</button><button class="mode-item" data-imode="mw_calibration" type="button">MW</button>

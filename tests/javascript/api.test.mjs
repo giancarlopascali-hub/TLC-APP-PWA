@@ -13,10 +13,11 @@ globalThis.window = {
   sessionStorage: {
     getItem(key) { return sessionStorageValues.get(key) ?? null; },
     setItem(key, value) { sessionStorageValues.set(key, String(value)); },
+    removeItem(key) { sessionStorageValues.delete(key); },
   },
 };
 
-const { registerApiHandlers, requestCrop, requestProfiles } = await import('../../frontend/modules/api.js');
+const { clearPendingRequests, hasPendingRequests, registerApiHandlers, requestCrop, requestProfiles } = await import('../../frontend/modules/api.js');
 
 function sentRequests() {
   return outbound.filter(item => item.message.type === 'streamlit:setComponentValue').map(item => item.message.value);
@@ -123,4 +124,26 @@ test('a profile reply survives a Streamlit iframe reload', async () => {
   assert.equal(received.length, 1);
   assert.equal(received[0].results[0].id, 'restored');
   assert.equal(JSON.parse(sessionStorageValues.get('aq_tlc_mobile_pending_requests_v1')).generate_profiles, undefined);
+});
+
+test('only a current in-flight request permits temporary workspace restoration', () => {
+  clearPendingRequests();
+  assert.equal(hasPendingRequests(), false);
+
+  requestProfiles({ image: 'temporary', peak_threshold: 50 }, { coalesce: false });
+  assert.equal(hasPendingRequests(), true);
+
+  clearPendingRequests();
+  assert.equal(hasPendingRequests(), false);
+  assert.equal(sessionStorageValues.has('aq_tlc_mobile_pending_requests_v1'), false);
+});
+
+test('expired request metadata cannot reopen a previous workspace', () => {
+  clearPendingRequests();
+  sessionStorageValues.set('aq_tlc_mobile_pending_requests_v1', JSON.stringify({
+    crop: { request_id: 'old-crop', created_at: Date.now() - 10 * 60 * 1000 },
+  }));
+
+  assert.equal(hasPendingRequests(), false);
+  assert.deepEqual(JSON.parse(sessionStorageValues.get('aq_tlc_mobile_pending_requests_v1')), {});
 });

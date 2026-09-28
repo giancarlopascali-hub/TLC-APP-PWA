@@ -11,10 +11,9 @@ globalThis.localStorage = {
 
 const { state } = await import('../../frontend/modules/state.js');
 const {
-  exportedProjectText,
-  importProjectFile,
   migrateProject,
   persistProject,
+  snapshotProject,
 } = await import('../../frontend/modules/storage.js');
 
 function resetState() {
@@ -53,24 +52,11 @@ test('legacy local projects receive the versioned origin-to-front schema', () =>
   assert.equal(lane.peaks[0].area_rb, 2);
 });
 
-test('project export is versioned and rejects unsupported or malformed imports', async () => {
+test('temporary workspace snapshots retain the versioned project shape', () => {
   resetState();
-  const exported = JSON.parse(exportedProjectText());
+  const exported = JSON.parse(snapshotProject());
   assert.equal(exported.schema_version, 2);
   assert.equal(exported.image.current, state.imgB64);
-
-  await assert.rejects(
-    importProjectFile({ size: 0, text: async () => '{not json' }),
-    /not valid JSON/,
-  );
-  await assert.rejects(
-    importProjectFile({ size: 0, text: async () => JSON.stringify({ schema_version: 99 }) }),
-    /newer version/,
-  );
-  await assert.rejects(
-    importProjectFile({ size: 18 * 1024 * 1024 + 1, text: async () => '{}' }),
-    /too large/,
-  );
 });
 
 test('storage quota failures remain explicit and do not throw through the UI', () => {
@@ -85,7 +71,7 @@ test('storage quota failures remain explicit and do not throw through the UI', (
   };
   assert.deepEqual(persistProject(), {
     ok: false,
-    error: 'Storage is full. Export your project before continuing.',
+    error: 'Storage is full. Start a new analysis before continuing.',
   });
   globalThis.localStorage = originalStorage;
 });

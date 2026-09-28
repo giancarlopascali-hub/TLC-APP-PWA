@@ -1,13 +1,13 @@
-import { registerApiHandlers } from './api.js';
+import { hasPendingRequests, registerApiHandlers } from './api.js';
 import { clearPeaks, redrawActiveChart, renderProfiles, renderTable } from './profiles.js';
 import { exportReport } from './reports.js';
 import { render } from './render.js';
-import { importProjectFile, loadStoredProject, persistProject } from './storage.js';
+import { clearStoredProject, loadStoredProject, persistProject } from './storage.js';
 import { $, state } from './state.js';
 import { stReady, stSetHeight } from './streamlit_bridge.js';
 import { setBusy, setStatus, setupAnalysisControls, setupProfileMenus, setupSettings, setupTabs, setupToolSelection, syncControls } from './ui.js';
 import { setupCanvasEvents } from './interactions.js';
-import { calculateLanes, downloadProject, handleFile, hydrateCurrentImage, receiveCrop, receiveProfiles, requestDensitograms, resetWorkspace, startNewProject, undo } from './workspace.js';
+import { calculateLanes, handleFile, hydrateCurrentImage, receiveCrop, receiveProfiles, requestDensitograms, resetWorkspace, startNewProject, undo } from './workspace.js';
 
 export function init() {
   registerApiHandlers({
@@ -43,7 +43,7 @@ export function init() {
   window.addEventListener('resize', resizeComponent);
   window.addEventListener('orientationchange', resizeComponent);
   window.visualViewport?.addEventListener('resize', resizeComponent);
-  restoreLocalProject();
+  restoreInFlightProject();
 }
 
 function bindWorkspaceControls() {
@@ -55,15 +55,6 @@ function bindWorkspaceControls() {
   $('btn-reset')?.addEventListener('click', () => void resetWorkspace());
   $('btn-undo')?.addEventListener('click', () => void undo());
   $('btn-find-lanes')?.addEventListener('click', calculateLanes);
-  $('btn-export-project')?.addEventListener('click', downloadProject);
-  $('btn-import-project')?.addEventListener('click', () => $('project-input')?.click());
-  $('project-input')?.addEventListener('change', event => void importProject(event.target.files?.[0]));
-}
-
-async function importProject(file) {
-  try {
-    await importProjectFile(file); await hydrateCurrentImage(); persistProject(); setStatus('Project imported successfully.', 'success');
-  } catch (error) { setStatus(error.message || 'The project could not be imported.', 'error'); }
 }
 
 function bindInstallPrompt() {
@@ -76,17 +67,29 @@ function bindInstallPrompt() {
   });
 }
 
-async function restoreLocalProject() {
-  const restored = loadStoredProject();
-  if (!restored.ok) {
-    if (restored.reason === 'corrupt') setStatus('A saved project was corrupt and was not opened.', 'error');
+async function restoreInFlightProject() {
+  // The normal lifecycle is deliberately a fresh landing page. The only
+  // exception is Streamlit recreating its iframe while an analysis response is
+  // on its way back; that short hand-off needs the annotations to be restored.
+  if (!hasPendingRequests()) {
+    clearStoredProject();
     return;
   }
-  syncControls(); await hydrateCurrentImage(); setStatus('Recovered the last local project.', 'success');
+  const restored = loadStoredProject();
+  if (!restored.ok) {
+    if (restored.reason === 'corrupt') setStatus('A temporary analysis workspace was corrupt and could not be restored.', 'error');
+    return;
+  }
+  syncControls(); await hydrateCurrentImage(); setStatus('Restoring analysis…', 'info');
 }
 
 async function exportWithFeedback(scope) {
-  try { await exportReport(scope); setStatus('Report opened for printing or download.', 'success'); }
+  try {
+    const result = await exportReport(scope);
+    setStatus(result?.destination === 'download'
+      ? 'Printable report downloaded. Open it and use Print or Save as PDF.'
+      : 'PDF report opened. Use Print or Save as PDF to export it.', 'success');
+  }
   catch (error) { setStatus(error.message || 'The report could not be created.', 'error'); }
 }
 

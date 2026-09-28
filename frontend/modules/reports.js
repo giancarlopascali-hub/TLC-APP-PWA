@@ -91,24 +91,37 @@ function reportRows(lane) {
 export async function exportReport(scope = 'lane') {
   const lanes = scope === 'all' ? state.lanes : [state.activeLane].filter(Boolean);
   if (lanes.length === 0 || !state.imgB64) throw new Error('Create at least one lane before exporting a report.');
+  // Open synchronously from the button gesture. Browsers otherwise commonly
+  // block the report window after the image-loading await on mobile.
+  const popup = window.open('', '_blank');
+  if (popup) {
+    popup.opener = null;
+    popup.document.open();
+    popup.document.write('<!doctype html><title>AQ-TLC report</title><p style="font:16px system-ui,sans-serif;padding:24px">Preparing PDF report…</p>');
+    popup.document.close();
+  }
   const image = new Image();
   image.src = state.imgB64;
-  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('The plate image is unavailable.')); });
+  try {
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('The plate image is unavailable.')); });
   const sections = lanes.map(lane => {
     const title = escapeHtml(lane.name || `Lane ${lane.id}`);
     return `<section class="report-page"><header><div><h1>AQ-TLC analytical report</h1><p>Sample: <strong>${title}</strong></p></div><time>${escapeHtml(new Date().toLocaleString())}</time></header><div class="images"><img alt="Lane strip" src="${laneStrip(lane, image)}"><img alt="Densitogram" src="${laneChart(lane)}"></div><p class="method">Method: ${escapeHtml(state.integrationMethod)}. Peak areas use normalized analytical signal and integration bounds.</p>${reportRows(lane)}</section>`;
   }).join('');
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AQ-TLC analytical report</title><style>body{font:14px system-ui,sans-serif;color:#222;margin:0 auto;max-width:1100px;padding:30px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0366d6;margin-bottom:22px}h1{color:#0366d6;margin:0}.images{border:1px solid #ddd;border-radius:8px;overflow:hidden}.images img{display:block;width:100%}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f6f8fa}.method{color:#555}@media print{.report-page{page-break-after:always}}</style></head><body>${sections}</body></html>`;
-  const popup = window.open('', '_blank', 'noopener');
-  if (popup) {
-    popup.document.open(); popup.document.write(html); popup.document.close();
-    popup.onload = () => popup.print();
-    return;
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AQ-TLC analytical report</title><style>body{font:14px system-ui,sans-serif;color:#222;margin:0 auto;max-width:1100px;padding:30px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0366d6;margin-bottom:22px}h1{color:#0366d6;margin:0}.images{border:1px solid #ddd;border-radius:8px;overflow:hidden}.images img{display:block;width:100%}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f6f8fa}.method{color:#555}.report-action{margin:0 0 20px;padding:9px 14px;font:600 14px system-ui,sans-serif;color:#fff;background:#0366d6;border:0;border-radius:6px}@media print{.report-page{page-break-after:always}.report-action{display:none}}</style></head><body><button class="report-action" onclick="window.print()">Print / Save as PDF</button>${sections}<script>window.addEventListener('load',function(){window.setTimeout(function(){window.print();},200);});<\/script></body></html>`;
+    if (popup) {
+      popup.document.open(); popup.document.write(html); popup.document.close();
+      return { destination: 'print' };
+    }
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = `${safeFilename(lanes[0]?.name)}_report.html`;
+    document.body.append(anchor); anchor.click(); anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return { destination: 'download' };
+  } catch (error) {
+    popup?.close();
+    throw error;
   }
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = `${safeFilename(lanes[0]?.name)}_report.html`;
-  document.body.append(anchor); anchor.click(); anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

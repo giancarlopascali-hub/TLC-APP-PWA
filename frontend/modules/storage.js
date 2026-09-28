@@ -92,7 +92,7 @@ export function persistProject() {
     localStorage.setItem(STORAGE_KEY, snapshotProject());
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error?.name === 'QuotaExceededError' ? 'Storage is full. Export your project before continuing.' : 'The project could not be saved on this device.' };
+    return { ok: false, error: error?.name === 'QuotaExceededError' ? 'Storage is full. Start a new analysis before continuing.' : 'The project could not be saved on this device.' };
   }
 }
 
@@ -130,17 +130,4 @@ export function loadStoredProject() {
   if (!parsed) return { ok: false, reason: 'corrupt' };
   try { return { ok: true, project: restoreProject(parsed) }; }
   catch (error) { return { ok: false, reason: 'invalid', error: error.message }; }
-}
-
-export function exportedProjectText() {
-  return JSON.stringify(projectPayload(), null, 2);
-}
-
-export async function importProjectFile(file) {
-  if (!file) throw new Error('Choose an AQ-TLC project file first.');
-  if (file.size > 18 * 1024 * 1024) throw new Error('The project file is too large to import on this device.');
-  const text = await file.text();
-  const parsed = safeJsonParse(text);
-  if (!parsed) throw new Error('The selected file is not valid JSON.');
-  return restoreProject(parsed);
 }
