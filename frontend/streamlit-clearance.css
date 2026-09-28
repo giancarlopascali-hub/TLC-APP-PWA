@@ -1,0 +1,38 @@
+/*
+ * Streamlit Community Cloud keeps provider controls in the lower-right corner
+ * outside this component. Use the otherwise empty lower-left shelf for status
+ * messages, while keeping application actions clear of the provider controls.
+ */
+@media (max-width: 679px) {
+  :root {
+    --streamlit-cloud-shelf: 64px;
+  }
+
+  #view-workspace {
+    padding-bottom: var(--streamlit-cloud-shelf);
+  }
+
+  #view-landing {
+    padding-bottom: calc(1.5rem + var(--streamlit-cloud-shelf));
+  }
+
+  #status-area {
+    left: calc(0.75rem + env(safe-area-inset-left, 0px));
+    right: calc(8rem + env(safe-area-inset-right, 0px));
+    bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    display: flex;
+    align-items: center;
+    max-width: none;
+    min-height: 2.4rem;
+    max-height: 3.5rem;
+    overflow-y: auto;
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.65rem;
+    background: rgba(13, 17, 23, 0.98);
+    box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.24);
+    font-size: 0.72rem;
+    line-height: 1.25;
+    text-align: left;
+  }
+}
