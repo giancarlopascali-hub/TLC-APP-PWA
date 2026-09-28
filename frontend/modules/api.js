@@ -10,6 +10,7 @@ const handlers = { profiles: null, crop: null, error: null, activity: null };
 let queuedProfiles = null;
 let profileTimer = null;
 const PENDING_REQUESTS_STORAGE_KEY = 'aq_tlc_mobile_pending_requests_v1';
+const PENDING_REQUEST_MAX_AGE_MS = 5 * 60 * 1000;
 
 // A Streamlit rerun can recreate the component iframe between sending a
 // request and receiving its reply.  Keep only correlation metadata in session
@@ -26,25 +27,61 @@ function savePendingRequests(value) {
   try { window.sessionStorage?.setItem(PENDING_REQUESTS_STORAGE_KEY, JSON.stringify(value)); } catch { /* Storage is optional. */ }
 }
 
+function isCurrentPendingRequest(value, now = Date.now()) {
+  const age = now - Number(value?.created_at);
+  return value && typeof value === 'object'
+    && typeof value.request_id === 'string'
+    && Number.isFinite(Number(value.created_at))
+    && age >= 0
+    && age <= PENDING_REQUEST_MAX_AGE_MS;
+}
+
+function removeExpiredPendingRequests() {
+  const pending = loadPendingRequests();
+  const now = Date.now();
+  let changed = false;
+  Object.entries(pending).forEach(([action, value]) => {
+    if (!isCurrentPendingRequest(value, now)) { delete pending[action]; changed = true; }
+  });
+  if (changed) savePendingRequests(pending);
+  return pending;
+}
+
 function pendingRequest(action) {
-  const value = loadPendingRequests()[action];
-  return value && typeof value === 'object' && typeof value.request_id === 'string' ? value : null;
+  const value = removeExpiredPendingRequests()[action];
+  return isCurrentPendingRequest(value) ? value : null;
 }
 
 function rememberPendingRequest(action, requestId, payload) {
-  const pending = loadPendingRequests();
+  const pending = removeExpiredPendingRequests();
   pending[action] = {
     request_id: requestId,
+    created_at: Date.now(),
     ...(action === 'generate_profiles' ? { peak_threshold: Number(payload?.peak_threshold ?? 50) } : {}),
   };
   savePendingRequests(pending);
 }
 
 function forgetPendingRequest(action, requestId) {
-  const pending = loadPendingRequests();
+  const pending = removeExpiredPendingRequests();
   if (pending[action]?.request_id !== requestId) return;
   delete pending[action];
   savePendingRequests(pending);
+}
+
+/** True only during the short Streamlit rerun needed to receive a reply. */
+export function hasPendingRequests() {
+  return Object.values(removeExpiredPendingRequests()).some(value => isCurrentPendingRequest(value));
+}
+
+/** Discard results that belong to an image or analysis the user has replaced. */
+export function clearPendingRequests() {
+  if (profileTimer) { clearTimeout(profileTimer); profileTimer = null; }
+  queuedProfiles = null;
+  latestRequestByAction.clear();
+  deliveredRequestByAction.clear();
+  profileSettingsByRequest.clear();
+  try { window.sessionStorage?.removeItem(PENDING_REQUESTS_STORAGE_KEY); } catch { /* Storage is optional. */ }
 }
 
 export function registerApiHandlers(nextHandlers) {
