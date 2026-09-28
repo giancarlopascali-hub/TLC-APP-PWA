@@ -431,6 +431,16 @@ def main() -> None:
             height: calc(100vh - 16px) !important;
             height: calc(100dvh - 16px) !important;
           }
+          /* Streamlit Community Cloud adds its own fixed viewer badge in the
+             lower-right corner on narrow screens. It lives outside this app's
+             iframe, so reserve a small, deliberate clearance instead of
+             letting it cover the mobile toolbar. */
+          @media (max-width: 680px) {
+            iframe[data-testid="stCustomComponentV1"] {
+              height: calc(100vh - 64px) !important;
+              height: calc(100dvh - 64px) !important;
+            }
+          }
         </style>
         """,
         unsafe_allow_html=True,
