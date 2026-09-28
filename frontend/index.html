@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#010409">
+  <title>AQ-TLC Pro Mobile</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="index.css">
+  <script>
+    /* Receive an early Streamlit render before ES modules have loaded. */
+    window.__aqTlcRenderQueue = window.__aqTlcRenderQueue || [];
+    window.addEventListener('message', function (event) {
+      var message = event.data;
+      // Streamlit identifies messages sent *to* its host with
+      // `isStreamlitMessage`, but replies to a component only use the type.
+      if (window.__aqTlcBridgeLive || event.source !== window.parent || !message || message.type !== 'streamlit:render') return;
+      window.__aqTlcRenderQueue.push(message.args || {});
+    });
+    if (window.parent !== window) { window.__aqTlcReadySent = true; window.parent.postMessage({ isStreamlitMessage: true, type: 'streamlit:componentReady', apiVersion: 1 }, '*'); }
+  </script>
+</head>
+<body>
+  <div id="status-area" role="status" aria-live="polite" data-kind="info">Ready</div>
+  <main id="view-landing">
+    <div class="logo-box"><img src="icon.svg" alt="" class="app-icon"><h1>AQ-TLC Pro</h1><p>Mobile analytical workstation</p></div>
+    <div class="landing-actions">
+      <button class="btn-landing" id="btn-upload" type="button"><span aria-hidden="true">📂</span><span>Upload image</span></button>
+      <button class="btn-landing accent" id="btn-camera" type="button"><span aria-hidden="true">📸</span><span>Take photo</span></button>
+      <button class="btn-landing hidden" id="btn-install" type="button"><span aria-hidden="true">📲</span><span>Add to home screen</span></button>
+    </div>
+    <input type="file" id="file-input" class="hidden" accept="image/*">
+    <input type="file" id="camera-input" class="hidden" accept="image/*" capture="environment">
+  </main>
+
+  <main id="view-workspace" class="hidden">
+    <header class="ws-header">
+      <div class="ws-logo">AQ-TLC Pro <span id="lane-count-badge" class="badge">0 Lanes</span></div>
+      <a href="guide.html" target="_blank" rel="noopener" class="guide-link">Guide</a>
+    </header>
+    <div class="control-row" aria-label="Project controls">
+      <button id="btn-new" class="ctrl-btn" type="button">📁 <span>New</span></button>
+      <button id="btn-reset" class="ctrl-btn" type="button">🔄 <span>Reset</span></button>
+      <button id="btn-undo" class="ctrl-btn" type="button">↩ <span>Undo</span></button>
+      <button id="btn-settings" class="ctrl-btn" type="button">⚙ <span>Settings</span></button>
+      <button id="btn-export-project" class="ctrl-btn compact" type="button" title="Export project">⇧ <span>Project</span></button>
+      <button id="btn-import-project" class="ctrl-btn compact" type="button" title="Import project">⇩ <span>Project</span></button>
+      <input type="file" id="project-input" class="hidden" accept="application/json,.json">
+    </div>
+    <section class="ws-main">
+      <nav class="tabs-nav" aria-label="Analysis views">
+        <button class="tab-btn active" data-tab="image" type="button">🖼 Image</button>
+        <button class="tab-btn" data-tab="profile" type="button">📊 Profile</button>
+        <button class="tab-btn" data-tab="table" type="button">📋 Table</button>
+      </nav>
+      <div class="ws-body">
+        <section class="content-viewport">
+          <div id="tab-image" class="tab-content"><canvas id="canvas-main" aria-label="Plate image editor"></canvas></div>
+          <div id="tab-profile" class="tab-content hidden"><div id="densitogram-list" class="densitogram-list"><div class="empty-state">Select a lane to view analysis.</div></div></div>
+          <div id="tab-table" class="tab-content hidden"><div class="table-scroll-wrap"><table class="integration-table"><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div></div>
+        </section>
+        <aside class="ws-sidebar" aria-label="Peak settings">
+          <button id="btn-find-lanes" class="side-btn-primary" type="button" title="Calculate lanes">📡</button>
+          <div class="side-group"><span class="side-label">Polarity</span><button class="mode-btn active" data-mode="default" type="button">D</button><button class="mode-btn" data-mode="dark" type="button">S</button><button class="mode-btn" data-mode="bright" type="button">B</button></div>
+          <label class="side-group"><span class="side-label">Sensitivity</span><input type="number" id="peak-sens" value="40" min="1" max="80" inputmode="numeric"></label>
+          <label class="side-group"><span class="side-label">Distance</span><input type="number" id="peak-res" value="8" min="1" max="50" inputmode="numeric"></label>
+          <label class="side-group"><span class="side-label">Width</span><input type="number" id="peak-width" value="50" min="0" max="100" inputmode="numeric"></label>
+          <button id="btn-restore-defaults" class="side-btn" type="button" title="Restore defaults">↺</button>
+        </aside>
+      </div>
+      <footer class="bottom-toolbar-wrap">
+        <div id="toolbar-image" class="toolbar-content" aria-label="Image tools">
+          <button class="tool-item" data-tool="roi" type="button">📦<span>Crop</span></button>
+          <button class="tool-item active" data-tool="pan" type="button">🖐<span>Pan</span></button>
+          <button class="tool-item" data-tool="rotate_img" type="button">🔄<span>Rotate</span></button>
+          <button class="tool-item" data-tool="line" type="button">📏<span>Lines</span></button>
+          <button class="tool-item" data-tool="spotting" type="button">📍<span>Marks</span></button>
+          <button class="tool-item" data-tool="select" type="button">🖱<span>Select</span></button>
+        </div>
+        <div id="toolbar-profile" class="toolbar-content hidden" aria-label="Profile tools">
+          <div class="tool-group"><button id="btn-edit-peaks" class="tool-item" type="button">✏️<span>Edit</span></button><div id="menu-edit" class="submenu hidden"><button class="sub-item" data-pmode="edit-add" type="button">➕ Add</button><button class="sub-item" data-pmode="edit-move" type="button">🖐 Move</button><button class="sub-item" data-pmode="edit-delete" type="button">❌ Delete</button></div></div>
+          <button id="btn-clear-peaks" class="tool-item" type="button">🗑<span>Clear</span></button>
+          <button id="btn-reset-integ" class="tool-item" type="button">🔄<span>Detect</span></button>
+          <div class="tool-group"><button id="btn-reset-view" class="tool-item" type="button">🔍<span>View</span></button><div id="menu-view" class="submenu hidden"><button class="sub-item" data-pmode="nav-zoom" type="button">🔭 Zoom</button><button class="sub-item active" data-pmode="nav-pan" type="button">🖐 Pan</button><button class="sub-item" data-pmode="nav-1to1" type="button">📏 Fit</button></div></div>
+          <button id="btn-export-lane" class="tool-item" type="button">📄<span>Lane</span></button>
+          <button id="btn-full-report" class="tool-item" type="button">📚<span>Full</span></button>
+        </div>
+        <div id="toolbar-table" class="toolbar-content hidden" aria-label="Quantitation modes">
+          <button class="mode-item active" data-imode="relative" type="button">Rel. %</button><button class="mode-item" data-imode="calibration" type="button">Calib.</button><button class="mode-item" data-imode="mw_calibration" type="button">MW</button>
+        </div>
+      </footer>
+    </section>
+  </main>
+
+  <section id="settings-sheet" class="settings-sheet hidden" aria-label="Image and analysis settings" aria-modal="true" role="dialog">
+    <div class="settings-card"><header><h2>Analysis settings</h2><button id="btn-close-settings" type="button" aria-label="Close settings">×</button></header>
+      <div class="settings-section"><h3>RGB projection</h3><p>Choose a display/analysis weighting. Wavelength labels are RGB approximations, not physical spectrometer settings.</p><div class="preset-grid"><button class="wl-preset-btn active" data-wl="full" type="button">Full RGB</button><button class="wl-preset-btn" data-wl="450" type="button">Blue</button><button class="wl-preset-btn" data-wl="540" type="button">Green</button><button class="wl-preset-btn" data-wl="570" type="button">Yellow</button><button class="wl-preset-btn" data-wl="650" type="button">Red</button></div><label>Custom RGB weighting label <input id="wl-custom" type="number" min="380" max="750" value="540" inputmode="numeric"></label></div>
+      <div class="settings-section"><h3>Image</h3><button id="btn-invert-colors" class="setting-toggle" type="button">Invert colours</button></div>
+      <p class="settings-note">Bandwidth is intentionally not exposed until a validated analytical model is available.</p>
+    </div>
+  </section>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

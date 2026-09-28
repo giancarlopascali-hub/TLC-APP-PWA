@@ -1,0 +1,2 @@
+# Test-only dependencies.  Production deployment installs requirements.txt.
+pytest==9.0.2

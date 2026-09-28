@@ -1,0 +1,78 @@
+{
+  "area_cases": [
+    {
+      "name": "flat",
+      "signal": [0, 0, 0],
+      "left": 0,
+      "right": 2,
+      "expected": 0
+    },
+    {
+      "name": "triangle",
+      "signal": [0, 10, 0],
+      "left": 0,
+      "right": 2,
+      "expected": 10
+    },
+    {
+      "name": "baseline_subtracted_trapezoids",
+      "signal": [3, 5, 7, 3],
+      "left": 0,
+      "right": 3,
+      "expected": 6
+    },
+    {
+      "name": "negative_values_are_clipped_after_baseline",
+      "signal": [0, -3, 4, 0],
+      "left": 0,
+      "right": 3,
+      "expected": 4
+    },
+    {
+      "name": "bounds_are_clamped",
+      "signal": [0, 10, 0],
+      "left": -5,
+      "right": 10,
+      "expected": 10
+    },
+    {
+      "name": "reversed_bounds_have_no_area",
+      "signal": [0, 10, 0],
+      "left": 2,
+      "right": 0,
+      "expected": 0
+    }
+  ],
+  "rf_cases": [
+    {
+      "name": "below_origin_padding",
+      "index": 0,
+      "length": 111,
+      "expected": -0.05
+    },
+    {
+      "name": "origin",
+      "index": 5,
+      "length": 111,
+      "expected": 0
+    },
+    {
+      "name": "midpoint",
+      "index": 55,
+      "length": 111,
+      "expected": 0.5
+    },
+    {
+      "name": "front",
+      "index": 105,
+      "length": 111,
+      "expected": 1
+    },
+    {
+      "name": "above_front_padding",
+      "index": 110,
+      "length": 111,
+      "expected": 1.05
+    }
+  ]
+}
