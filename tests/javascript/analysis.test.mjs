@@ -35,6 +35,7 @@ test('manual peak lifecycle uses the analysis signal and authoritative area boun
     profile_analysis: [0, 30, 100, 30, 0],
   };
   const initial = remeasurePeak({ idx: 2, manual: true, type: 'N' }, lane, 50, { resetBounds: true });
+  assert.deepEqual([initial.area_lb, initial.area_rb], [initial.display_lb, initial.display_rb]);
   assert.equal(initial.area, integratePeakArea(lane.profile_analysis, initial.area_lb, initial.area_rb));
   const resized = remeasurePeak({ ...initial, area_lb: 1, area_rb: 3 }, lane, 50);
   assert.equal(resized.area, 70);
@@ -58,8 +59,16 @@ test('legacy profile and peak fields migrate to origin-to-front schema', () => {
 test('bounds remain inclusive, ordered, and usable for a narrow manual peak', () => {
   const bounds = findPeakBounds([0, 0, 100, 0, 0], 2, 50);
   assert.ok(bounds.area_rb > bounds.area_lb);
-  assert.ok(bounds.display_lb >= bounds.area_lb);
-  assert.ok(bounds.display_rb <= bounds.area_rb);
+  assert.deepEqual([bounds.area_lb, bounds.area_rb], [bounds.display_lb, bounds.display_rb]);
+});
+
+test('Width percentage changes the one authoritative integration interval', () => {
+  const profile = [0, 5, 25, 100, 25, 5, 0];
+  const wide = findPeakBounds(profile, 3, 20);
+  const narrow = findPeakBounds(profile, 3, 60);
+  assert.deepEqual([wide.area_lb, wide.area_rb], [1, 5]);
+  assert.deepEqual([narrow.area_lb, narrow.area_rb], [2, 4]);
+  assert.ok(integratePeakArea(profile, narrow.area_lb, narrow.area_rb) < integratePeakArea(profile, wide.area_lb, wide.area_rb));
 });
 
 test('calibration failures are explicit and relative totals cannot become NaN', () => {

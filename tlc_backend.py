@@ -459,7 +459,12 @@ def _display_bounds(
     area_right: int,
     threshold_fraction: float,
 ) -> tuple[int, int]:
-    """Find a visual threshold band enclosed by the integration interval."""
+    """Find the Width-controlled peak interval inside the detected peak base.
+
+    SciPy's left/right bases are only search limits.  The threshold crossings
+    returned here are the single authoritative bounds used for display,
+    editing, and integration.
+    """
 
     baseline = min(float(analysis_signal[area_left]), float(analysis_signal[area_right]))
     threshold = baseline + (
@@ -478,9 +483,8 @@ def _display_bounds(
             right = candidate
             break
 
-    # A one-sample band is hard to operate on touch devices.  Widen where the
-    # integration interval permits it, while never making visual bounds
-    # authoritative or extending them beyond the area bounds.
+    # A one-sample band has zero trapezoidal area and is hard to operate on
+    # touch devices. Widen where the detected peak base permits it.
     if right - left < 2:
         left = max(area_left, apex - 2)
         right = min(area_right, apex + 2)
@@ -711,14 +715,14 @@ def _detect_lane_peaks(
         area_right = int(properties["right_bases"][position])
         if area_right <= area_left:
             continue
-        display_left, display_right = _display_bounds(
+        peak_left, peak_right = _display_bounds(
             analysis,
             int(apex),
             area_left,
             area_right,
             settings.peak_threshold,
         )
-        area = integrate_peak_area(analysis, area_left, area_right)
+        area = integrate_peak_area(analysis, peak_left, peak_right)
         peaks.append(
             {
                 "idx": int(apex),
@@ -726,10 +730,11 @@ def _detect_lane_peaks(
                 "height_display": float(display[apex]),
                 "height_analysis": float(analysis[apex]),
                 "area": float(area),
-                "area_lb": area_left,
-                "area_rb": area_right,
-                "display_lb": display_left,
-                "display_rb": display_right,
+                "area_lb": peak_left,
+                "area_rb": peak_right,
+                # Compatibility aliases: there is only one boundary set.
+                "display_lb": peak_left,
+                "display_rb": peak_right,
                 "manual": False,
                 "type": "N",
             }

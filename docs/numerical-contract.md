@@ -26,8 +26,8 @@ either array, but drawing values must not change the analytical signal.
   "height_display": 78.2,
   "height_analysis": 91.4,
   "area": 1240.5,
-  "area_lb": 130,
-  "area_rb": 155,
+  "area_lb": 134,
+  "area_rb": 150,
   "display_lb": 134,
   "display_rb": 150,
   "manual": false,
@@ -35,10 +35,10 @@ either array, but drawing values must not change the analytical signal.
 }
 ```
 
-`area_lb` and `area_rb` are inclusive integration bounds.  The editable peak
-handles refer to these two values.  `display_lb` and `display_rb` are a visual
-threshold band only; they must remain within the integration bounds and must
-never become the AUC interval by accident.
+`area_lb` and `area_rb` are the inclusive, Width-controlled integration bounds.
+The editable peak handles refer to these two values. `display_lb` and
+`display_rb` are compatibility aliases with identical values; the application
+has only one visible and analytical boundary set.
 
 Manual creation and apex movement calculate fresh bounds, Rf, heights, and
 area from `profile_analysis`.  Moving an integration handle recalculates area

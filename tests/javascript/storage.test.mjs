@@ -47,9 +47,11 @@ test('legacy local projects receive the versioned origin-to-front schema', () =>
   assert.equal(migrated.schema_version, 2);
   assert.deepEqual(lane.profile_display, [3, 2, 1]);
   assert.deepEqual(lane.profile_analysis, [100, 50, 0]);
-  assert.equal(lane.peaks[0].area_recalculation_required, true);
+  assert.equal(lane.peaks[0].area_recalculation_required, undefined);
   assert.equal(lane.peaks[0].area_lb, 0);
   assert.equal(lane.peaks[0].area_rb, 2);
+  assert.equal(lane.peaks[0].display_lb, 0);
+  assert.equal(lane.peaks[0].display_rb, 2);
 });
 
 test('temporary workspace snapshots retain the versioned project shape', () => {

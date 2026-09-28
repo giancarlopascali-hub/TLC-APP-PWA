@@ -145,12 +145,21 @@ def test_profiles_expose_explicit_origin_to_front_signals_and_peak_schema() -> N
         "type",
     } <= peak.keys()
     assert 0 <= peak["area_lb"] < peak["area_rb"] < len(analysis)
-    assert peak["area_lb"] <= peak["display_lb"] <= peak["display_rb"] <= peak["area_rb"]
+    assert (peak["area_lb"], peak["area_rb"]) == (peak["display_lb"], peak["display_rb"])
     assert peak["area"] == pytest.approx(
         tlc_backend.integrate_peak_area(analysis, peak["area_lb"], peak["area_rb"])
     )
     assert peak["manual"] is False
     assert peak["type"] == "N"
+
+
+def test_width_threshold_is_the_authoritative_integration_interval() -> None:
+    signal = np.asarray([0, 5, 25, 100, 25, 5, 0], dtype=float)
+    wide = tlc_backend._display_bounds(signal, 3, 0, 6, 0.20)
+    narrow = tlc_backend._display_bounds(signal, 3, 0, 6, 0.60)
+    assert wide == (1, 5)
+    assert narrow == (2, 4)
+    assert tlc_backend.integrate_peak_area(signal, *narrow) < tlc_backend.integrate_peak_area(signal, *wide)
 
 
 def test_empty_clipped_lane_returns_empty_profiles() -> None:

@@ -1,6 +1,34 @@
 import { displayProfileFor } from './analysis.js';
 import { imageCanvasPosition } from './coords.js';
+import { applyImageFilters } from './image_filters.js';
 import { $, state } from './state.js';
+
+let filteredSource = null;
+let filteredImage = null;
+let filteredSettings = null;
+
+function imageSource() {
+  if (!state.imgEl || (!state.targetWavelength && !state.invertColors)) return state.imgEl;
+  const settings = `${state.targetWavelength ?? 'full'}:${state.invertColors}`;
+  if (filteredSource === state.imgEl && filteredSettings === settings && filteredImage) return filteredImage;
+  const canvas = document.createElement('canvas');
+  canvas.width = state.imgEl.naturalWidth || state.imgW;
+  canvas.height = state.imgEl.naturalHeight || state.imgH;
+  const context = canvas.getContext('2d');
+  context.drawImage(state.imgEl, 0, 0, canvas.width, canvas.height);
+  try {
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    applyImageFilters(pixels.data, state.targetWavelength, state.invertColors);
+    context.putImageData(pixels, 0, 0);
+    filteredSource = state.imgEl;
+    filteredSettings = settings;
+    filteredImage = canvas;
+    return filteredImage;
+  } catch (error) {
+    console.warn('[AQ-TLC] Image filtering fallback:', error);
+    return state.imgEl;
+  }
+}
 
 export function render() {
   const canvas = $('canvas-main');
@@ -19,9 +47,7 @@ export function render() {
   context.save();
   context.translate(state.imgW * scale / 2, state.imgH * scale / 2);
   context.rotate(state.imageRotation);
-  context.filter = state.invertColors ? 'invert(1)' : 'none';
-  context.drawImage(state.imgEl, -state.imgW * scale / 2, -state.imgH * scale / 2, width, drawHeight);
-  context.filter = 'none';
+  context.drawImage(imageSource(), -state.imgW * scale / 2, -state.imgH * scale / 2, width, drawHeight);
   context.translate(-state.imgW * scale / 2, -state.imgH * scale / 2);
   drawMarks(context, scale);
   drawLines(context, scale);

@@ -45,25 +45,29 @@ export function integratePeakArea(profile, left, right) {
   return Number.isFinite(area) ? area : 0;
 }
 
-/**
- * Finds monotonic threshold bounds for a manual peak.  The same bounds are
- * used for initial integration and the (narrower-or-equal) visual band.  Once
- * a user drags a boundary it remains the authoritative area boundary.
- */
+/** Find the single Width-controlled interval for display and integration. */
 export function findPeakBounds(profile, apex, thresholdPercent = 50) {
   if (!Array.isArray(profile) || profile.length < 2) {
     return { area_lb: 0, area_rb: 0, display_lb: 0, display_rb: 0 };
   }
   const signal = profile.map(value => Number.isFinite(Number(value)) ? Number(value) : 0);
   const idx = clampIndex(apex, signal.length);
-  const globalBaseline = Math.min(...signal);
-  const height = Math.max(0, signal[idx] - globalBaseline);
+  let baseLeft = idx;
+  let baseRight = idx;
+  while (baseLeft > 0 && signal[baseLeft - 1] <= signal[baseLeft]) baseLeft -= 1;
+  while (baseRight < signal.length - 1 && signal[baseRight + 1] <= signal[baseRight]) baseRight += 1;
+  const baseline = Math.min(signal[baseLeft], signal[baseRight]);
+  const height = Math.max(0, signal[idx] - baseline);
   const fraction = Math.max(0, Math.min(100, Number(thresholdPercent) || 0)) / 100;
-  const threshold = globalBaseline + height * fraction;
-  let left = idx;
-  let right = idx;
-  while (left > 0 && signal[left - 1] <= signal[left] && signal[left - 1] >= threshold) left -= 1;
-  while (right < signal.length - 1 && signal[right + 1] <= signal[right] && signal[right + 1] >= threshold) right += 1;
+  const threshold = baseline + height * fraction;
+  let left = baseLeft;
+  let right = baseRight;
+  for (let position = idx; position > baseLeft; position -= 1) {
+    if (signal[position] < threshold) { left = position; break; }
+  }
+  for (let position = idx; position < baseRight; position += 1) {
+    if (signal[position] < threshold) { right = position; break; }
+  }
   // A one-sample peak has zero formal area.  Use a neighbouring sample when
   // available so a newly added peak can be adjusted immediately.
   if (right === left && signal.length > 1) {
@@ -82,21 +86,19 @@ export function calculateRf(index, length) {
 export function normalizePeakSchema(peak, length, displayProfile, analysisProfile, thresholdPercent = 50) {
   const next = { ...(peak || {}) };
   const idx = clampIndex(next.idx, length);
-  const hasExplicitAreaBounds = next.area_lb != null && next.area_rb != null;
-  const hasLegacyBounds = next.lb != null && next.rb != null;
-  const legacyLeft = next.area_lb ?? next.lb;
-  const legacyRight = next.area_rb ?? next.rb;
+  // Older responses may contain a wide AUC interval plus the desired narrow
+  // Width-controlled display interval. Prefer the latter while migrating.
+  const legacyLeft = next.display_lb ?? next.area_lb ?? next.lb;
+  const legacyRight = next.display_rb ?? next.area_rb ?? next.rb;
   const fallback = findPeakBounds(analysisProfile, idx, thresholdPercent);
   let left = legacyLeft == null ? fallback.area_lb : clampIndex(legacyLeft, length);
   let right = legacyRight == null ? fallback.area_rb : clampIndex(legacyRight, length);
   if (right < left) [left, right] = [right, left];
-  const visualLeft = next.display_lb ?? next.lb ?? left;
-  const visualRight = next.display_rb ?? next.rb ?? right;
   next.idx = idx;
   next.area_lb = left;
   next.area_rb = right;
-  next.display_lb = Math.max(left, Math.min(right, clampIndex(visualLeft, length)));
-  next.display_rb = Math.max(next.display_lb, Math.min(right, clampIndex(visualRight, length)));
+  next.display_lb = left;
+  next.display_rb = right;
   next.height_display = Number.isFinite(Number(next.height_display))
     ? Number(next.height_display) : Number(displayProfile?.[idx] ?? next.height ?? 0);
   next.height_analysis = Number.isFinite(Number(next.height_analysis))
@@ -107,10 +109,7 @@ export function normalizePeakSchema(peak, length, displayProfile, analysisProfil
   next.rb = next.area_rb;
   next.rf = Number.isFinite(Number(next.rf)) ? Number(next.rf) : calculateRf(idx, length);
   next.area = integratePeakArea(analysisProfile, left, right);
-  // The pre-v2 mobile app stored visual bounds as lb/rb while automatic AUC
-  // used different hidden SciPy bases.  A legacy project cannot recreate those
-  // bases faithfully, so preserve an explicit audit marker after migration.
-  if (!hasExplicitAreaBounds && hasLegacyBounds && !next.manual) next.area_recalculation_required = true;
+  delete next.area_recalculation_required;
   next.manual = Boolean(next.manual);
   next.type = ['N', 'S', 'A'].includes(next.type) ? next.type : 'N';
   return next;

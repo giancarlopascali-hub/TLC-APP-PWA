@@ -80,16 +80,13 @@ function drawChart(canvas, lane) {
   const min = Math.min(...display); const max = Math.max(...display); const span = max - min || 1;
   context.save(); context.beginPath(); context.rect(PADDING.left, PADDING.top, plotWidth, plotHeight); context.clip();
   (lane.peaks || []).forEach(peak => {
-    const displayLeft = Number(peak.display_lb ?? peak.area_lb ?? 0);
-    const displayRight = Number(peak.display_rb ?? peak.area_rb ?? 0);
-    const areaLeft = Number(peak.area_lb ?? peak.lb ?? displayLeft);
-    const areaRight = Number(peak.area_rb ?? peak.rb ?? displayRight);
+    const left = Number(peak.area_lb ?? peak.display_lb ?? peak.lb ?? 0);
+    const right = Number(peak.area_rb ?? peak.display_rb ?? peak.rb ?? 0);
     const color = peak.manual ? '#e34c26' : '#ffd700';
     context.fillStyle = peak.manual ? 'rgba(227,76,38,.18)' : 'rgba(255,215,0,.18)';
-    context.fillRect(plotX(displayLeft, display.length, plotWidth), PADDING.top, Math.max(0, plotX(displayRight, display.length, plotWidth) - plotX(displayLeft, display.length, plotWidth)), plotHeight);
-    context.strokeStyle = color; context.lineWidth = 1; context.setLineDash([3, 3]);
-    [areaLeft, areaRight].forEach(bound => { const x = plotX(bound, display.length, plotWidth); context.beginPath(); context.moveTo(x, PADDING.top); context.lineTo(x, PADDING.top + plotHeight); context.stroke(); });
-    context.setLineDash([]);
+    context.fillRect(plotX(left, display.length, plotWidth), PADDING.top, Math.max(0, plotX(right, display.length, plotWidth) - plotX(left, display.length, plotWidth)), plotHeight);
+    context.strokeStyle = color; context.lineWidth = 2;
+    [left, right].forEach(bound => { const x = plotX(bound, display.length, plotWidth); context.beginPath(); context.moveTo(x, PADDING.top); context.lineTo(x, PADDING.top + plotHeight); context.stroke(); });
   });
   context.strokeStyle = '#58a6ff'; context.lineWidth = 2; context.beginPath();
   display.forEach((value, index) => {
@@ -174,6 +171,10 @@ function chartPointerMove(event, canvas) {
       const { peak, side } = transient.draggingBound;
       if (side === 'lb') peak.area_lb = Math.min(Number(peak.area_rb) - 1, Math.max(0, index));
       else peak.area_rb = Math.max(Number(peak.area_lb) + 1, Math.min(display.length - 1, index));
+      peak.display_lb = peak.area_lb;
+      peak.display_rb = peak.area_rb;
+      peak.lb = peak.area_lb;
+      peak.rb = peak.area_rb;
       Object.assign(peak, remeasurePeak({ ...peak, manual: true }, lane, state.peakThreshold));
       updateAfterPeakChange({ persist: false });
     } catch { setStatus('The analysis profile is not valid for peak integration.', 'error'); }
