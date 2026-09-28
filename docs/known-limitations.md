@@ -13,8 +13,10 @@
   behaviour on a deployed URL before making such a claim.
 - **Offline use:** analytical processing requires the Streamlit host. The app
   displays a status error if it is opened outside that host.
-- **Project storage:** recovery is local to a browser origin and can be lost by
-  clearing browser data. Export projects before migration or device changes.
+- **Project storage:** the normal lifecycle starts with a fresh workspace after
+  a refresh or new browser session. Project-file export/import and long-term
+  project recovery are not currently available. Keep the source image and
+  export the required report before leaving the app.
 - **Image limits:** the browser and backend limit image size, dimensions,
   pixels, lane count, and geometry to protect the hosted worker. Very large
   images may need to be reduced before upload.

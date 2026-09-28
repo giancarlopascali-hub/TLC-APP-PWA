@@ -1,62 +1,64 @@
 # AQ-TLC Mobile
 
-AQ-TLC Mobile is a touch-oriented quantitative thin-layer chromatography
-workspace deployed as a Streamlit custom component. It keeps the existing
-mobile workflow—camera or gallery input, crop and rotation, origin/front lines,
-spotting marks, lane generation, profile editing, calibration, reports, undo,
-and local recovery—while using a Streamlit-hosted analysis service.
+AQ-TLC Mobile is the touch-oriented Streamlit edition of the quantitative
+thin-layer chromatography workspace. It supports camera or gallery input,
+plate preparation, lane generation, profile editing, calibration and printable
+reports from a phone-sized interface.
 
-## Release status
+## Production source
 
-The Streamlit application is ready for a **preview deployment** from
-`codex/mobile-streamlit-final`. It must pass the documented Streamlit Cloud
-and real-device acceptance checks before it is merged to `main` and used as the
-production mobile application.
+The production source is the `main` branch of:
 
-The root `index.html` / `app.js` Flask application and Hugging Face Docker
-configuration are deliberately retained as a temporary migration fallback.
-They are not the new mobile app and should remain available until the Streamlit
-release has completed its agreed observation window. The fallback uses
-`requirements-legacy.txt`; Streamlit Community Cloud uses only
-`requirements.txt`.
+- Repository: `giancarlopascali-hub/TLC-APP-PWA`
+- Branch: `main`
+- Streamlit entrypoint: `streamlit_app.py`
+- Supported deployment Python: `3.11`
+
+Feature branches are temporary development work and must not be used as
+permanent Streamlit deployment coordinates. See the
+[Streamlit deployment runbook](docs/deployment-runbook.md) for first-time
+deployment, moving an existing app from an old branch, routine updates and
+rollback.
 
 ## Capabilities
 
 - Camera and gallery image input with client-side downscaling
-- Crop, rotation, origin/front lines, spotting marks, lane guidance, and touch
-  gestures
-- Server-computed density profiles, automatic peaks, and manual peak editing
-- Consistent peak areas calculated from the normalized analytical profile and
-  explicit integration bounds
-- Relative, area-calibration, and molecular-weight calibration modes with
-  validation for invalid standards
-- Local project recovery plus versioned project export/import
-- Printable reports with safe text serialization
-- RGB image-projection controls; these are image weightings, not physical
-  spectrometer or wavelength-bandwidth measurements
+- Crop, rotation, origin/front lines, spotting marks and touch gestures
+- Server-computed density profiles and automatic peak detection
+- Manual peak add, move, resize and delete workflows
+- Peak areas calculated from the normalized analytical profile and explicit
+  integration bounds
+- Relative, area-calibration and molecular-weight calibration modes
+- Printable active-lane and all-lane reports
+- RGB image-projection controls and colour inversion
 
 See [the numerical contract](docs/numerical-contract.md) and
 [component protocol](docs/protocol.md) for the implementation contracts.
 
-## Important limitations and privacy
+## Session, privacy and analytical limitations
 
-The Streamlit component is not claimed to be an installable PWA. The old
-top-level PWA manifest/service-worker files belong to the retained fallback;
-an iframe component cannot establish equivalent top-level installability.
+The active analysis is temporary. The normal lifecycle starts on a fresh
+landing page after a refresh or a new browser session. The current Mobile app
+does not offer project-file export/import, user accounts or long-term server
+storage. Keep the source image and export the required report before closing
+or refreshing the app.
 
-Project recovery is browser-origin-specific. Export a project before moving
-to another device, browser, or deployment URL. Plate images are held in the
-browser for the active project and sent to the selected Streamlit app only for
-analysis. This application does not implement server-side project accounts or
-long-term image storage. Do not upload sensitive material until the app's
-Cloud access mode and organisational privacy requirements have been confirmed.
+Plate images are sent to the selected Streamlit deployment for analysis. Do
+not upload sensitive material until the deployment access mode and the
+organisation's privacy requirements have been confirmed.
+
+RGB projection controls are image-processing weightings. They are not a
+physical monochromator, spectrometer or measured wavelength bandwidth. AQ-TLC
+is an analytical aid and must be validated for the intended method, plate
+chemistry and imaging conditions.
 
 Read [known limitations](docs/known-limitations.md) and the
-[migration guide](docs/migration-guide.md) before cutover.
+[migration notes](docs/migration-guide.md) before changing a production URL or
+retiring an older deployment.
 
 ## Local development
 
-Use Python 3.11 for the Streamlit candidate.
+Use Python 3.11.
 
 ```powershell
 python -m venv .venv
@@ -66,9 +68,9 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 streamlit run streamlit_app.py
 ```
 
-Open the local URL printed by Streamlit. The Streamlit component must be
-opened through that host; opening `frontend/index.html` directly correctly
-shows that the analysis host is unavailable.
+Open the local URL printed by Streamlit. The component must be opened through
+the Streamlit host; opening `frontend/index.html` directly does not provide the
+Python analysis service.
 
 Run the automated checks with:
 
@@ -78,24 +80,16 @@ python -m pytest tests/python -q
 node --test tests/javascript/*.test.mjs
 ```
 
-To run the retained legacy fallback locally instead, install
-`requirements-legacy.txt` and run `python server.py`. Do not use that command
-to validate the new Streamlit component.
+## Repository layout
 
-## Deployment and release
+- `streamlit_app.py` — Streamlit entrypoint and component protocol host
+- `tlc_backend.py` — analytical backend
+- `frontend/` — current Mobile interface and quick guide
+- `tests/` — Python and JavaScript regression tests
+- `docs/` — numerical, protocol, migration and deployment documentation
+- `archive/planning/` — historical implementation reviews and plans; not used
+  by the Streamlit production entrypoint
 
-The exact preview, production, validation, and rollback procedure is in
-[the deployment runbook](docs/deployment-runbook.md). In short:
-
-1. Push and verify the implementation branch and its CI checks.
-2. Create a separate Streamlit Community Cloud preview app from
-   `streamlit_app.py` on Python 3.11.
-3. Validate it on physical iOS Safari and Android Chrome devices.
-4. Obtain acceptance, merge the specific reviewed release to `main`, then
-   create a separate production Streamlit app from `main`.
-5. Keep Hugging Face live during the agreed observation period; retire it only
-   through a deliberate, separately reviewed change.
-
-The existing desktop Streamlit app is independent. Do not recreate, redeploy,
-or change its intentional browser-session behaviour as part of this mobile
-release.
+The Desktop Streamlit app is maintained independently in
+`giancarlopascali-hub/AQ-TLC-Streamlit` and is also deployed from its `main`
+branch.

@@ -1,4 +1,6 @@
-archive/
+archive/*
+!archive/planning/
+!archive/planning/*.md
 __pycache__/
 *.pyc
 .pytest_cache/

@@ -1,41 +1,34 @@
-# Moving projects to AQ-TLC Mobile on Streamlit
+# Moving an AQ-TLC Mobile workflow
 
-Projects are stored in browser-local storage, so they do not automatically
-cross from the old Hugging Face origin to the new Streamlit URL, or from one
-phone/browser to another.
+The current Streamlit Mobile app does not provide project-file export/import
+or cross-device project recovery. A normal refresh or new browser session
+starts at the image-loading screen.
 
-## For new Streamlit projects
+## Before changing a device, browser or deployment URL
 
-Use the **Project** export button in the workspace before changing device,
-browser, or deployment URL. Import the resulting JSON file from the Project
-import button after opening the destination app. The file contains the image,
-annotations, analytical settings, and peaks; handle it as sensitive laboratory
-data where appropriate.
+1. Keep the original plate image outside the browser.
+2. Finish the current analysis before changing environments.
+3. Export the active-lane or all-lane report and verify that the report opens.
+4. Record any lane names, peak names, response factors and calibration values
+   needed to recreate the analysis.
+5. If the analysis must be reproduced, reopen the source image in the new app
+   and recreate the lines, marks, lanes and peak edits.
 
-The Streamlit project format is versioned. It can migrate the unversioned
-shape used by earlier builds when that data is available on the same browser
-origin. Invalid, corrupt, or newer unsupported files are rejected with a
-clear message rather than partially overwriting the active project.
+## When moving from an older deployment
 
-## From the retained Hugging Face application
+Browser security prevents one deployment origin from reading storage owned by
+another deployment. Finish and export any required reports from the older app
+before it is retired. If the older deployment offered project export, retain
+that file as an audit artifact, but do not assume the current Mobile app can
+import it.
 
-The old app's browser-local `tlc_project` cannot be read by a new Streamlit
-origin. Before the old deployment is retired, finish or export any necessary
-reports there and retain the original image and analysis record. Re-upload the
-image in Streamlit and recreate the annotations if no project export file is
-available.
+After opening the new Streamlit deployment:
 
-This limitation is intentional: browser-origin isolation prevents one public
-website from reading another website's local project data. The old deployment
-will remain available through the agreed migration window, so do not delete
-its local browser data until you have confirmed the new project is complete.
+1. Re-upload the original image.
+2. Recreate the plate geometry and calculate lanes.
+3. Confirm the profile, peak boundaries and Rf values.
+4. Re-enter standards and correction factors.
+5. Export a new report from the current deployment.
 
-## Before clearing old data
-
-1. Export a Streamlit project and verify that it imports successfully.
-2. Export any report required for the laboratory record.
-3. Confirm profile, peak, and calibration results after import.
-4. Keep a copy of the source image outside browser storage.
-
-Do not rely on browser cache clearing, device migration, or home-screen app
-installation to preserve a project.
+Project portability can be added in a future release only after its file
+format, validation, privacy and backward-compatibility behaviour are tested.

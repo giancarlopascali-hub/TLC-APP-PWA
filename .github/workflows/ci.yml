@@ -2,11 +2,11 @@ name: Mobile Streamlit checks
 
 on:
   pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-      - master
-      - "codex/**"
 
 permissions:
   contents: read

@@ -1,1 +1,212 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AQ-TLC mobile guide</title><link rel="stylesheet" href="index.css"></head><body style="overflow:auto;padding:1.5rem;line-height:1.55"><h1>AQ-TLC mobile quick guide</h1><p>1. Upload or take a plate image. 2. Use Lines to mark the origin and solvent front. 3. Use Marks to add sample positions, then calculate lanes. 4. Inspect profiles and use Edit to add, move, resize, or delete peaks. 5. Use Table for relative quantitation or calibration.</p><p>Peak areas are calculated from the normalized analytical profile between the dashed integration boundaries. Shaded bands are visual aids. Export a project before moving between devices or sites; browser-local recovery is origin-specific.</p><p>RGB projection settings are image-weighting controls, not physical spectrometer measurements. Wavelength bandwidth remains unavailable until it has a validated model.</p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#010409">
+  <title>AQ-TLC Mobile Quick Guide</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #010409;
+      --panel: #0d1117;
+      --panel-2: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #9da7b3;
+      --accent: #58a6ff;
+      --accent-soft: rgba(88, 166, 255, .12);
+      --green: #3fb950;
+      --orange: #f0883e;
+      --red: #ff7b72;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.62; }
+    a { color: var(--accent); }
+    strong { color: #fff; }
+    code { padding: .12rem .34rem; border: 1px solid var(--border); border-radius: 5px; background: #161b22; color: #fff; }
+
+    .page { width: min(920px, 100%); margin: 0 auto; padding: 1rem 1rem 4rem; }
+    .hero {
+      margin: .5rem 0 1rem;
+      padding: clamp(1.4rem, 6vw, 3rem);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 95% 5%, rgba(188, 140, 255, .2), transparent 32%),
+        radial-gradient(circle at 5% 100%, rgba(88, 166, 255, .18), transparent 34%),
+        var(--panel);
+    }
+    .eyebrow { margin: 0 0 .35rem; color: var(--accent); font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { max-width: 680px; margin: 0; font-size: clamp(2rem, 9vw, 3.8rem); line-height: 1.02; letter-spacing: -.045em; }
+    .lede { max-width: 700px; margin: 1rem 0 0; color: #c6d0da; font-size: clamp(1rem, 3.4vw, 1.15rem); }
+    .platform { display: inline-flex; align-items: center; gap: .45rem; margin-top: 1.2rem; padding: .42rem .7rem; border: 1px solid #315f8a; border-radius: 999px; background: rgba(31, 111, 235, .12); color: #b6dcff; font-size: .8rem; font-weight: 700; }
+
+    .quick-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; margin: 1rem 0; }
+    .quick-nav a { padding: .75rem .85rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font-size: .86rem; font-weight: 700; text-decoration: none; }
+
+    section { margin-top: 1rem; padding: clamp(1.1rem, 4vw, 1.75rem); border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+    h2 { margin: 0 0 .8rem; font-size: clamp(1.25rem, 5vw, 1.6rem); line-height: 1.2; letter-spacing: -.02em; }
+    h3 { margin: 1.35rem 0 .35rem; font-size: 1rem; color: #fff; }
+    p { margin: .5rem 0; }
+    ol, ul { margin: .65rem 0 0; padding-left: 1.25rem; }
+    li { margin: .55rem 0; padding-left: .15rem; }
+
+    .steps { display: grid; gap: .7rem; margin-top: 1rem; counter-reset: steps; }
+    .step { position: relative; padding: .95rem .9rem .95rem 3.45rem; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); counter-increment: steps; }
+    .step::before { content: counter(steps); position: absolute; top: .85rem; left: .85rem; display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border-radius: 50%; background: var(--accent); color: #06101b; font-size: .8rem; font-weight: 900; }
+    .step b { display: block; margin-bottom: .15rem; color: #fff; }
+
+    .callout { margin: 1rem 0 0; padding: .85rem 1rem; border-left: 3px solid var(--accent); border-radius: 0 9px 9px 0; background: var(--accent-soft); color: #cfdae5; }
+    .callout.warning { border-left-color: var(--orange); background: rgba(240, 136, 62, .1); }
+    .callout.danger { border-left-color: var(--red); background: rgba(255, 123, 114, .09); }
+
+    .legend { display: grid; gap: .55rem; margin-top: .8rem; }
+    .legend-item { display: grid; grid-template-columns: 13px 1fr; gap: .65rem; align-items: start; }
+    .dot { width: 11px; height: 11px; margin-top: .42rem; border-radius: 50%; background: var(--accent); }
+    .dot.gold { background: #ffd700; }
+    .dot.red { background: #e34c26; }
+
+    .mode-grid { display: grid; gap: .7rem; margin-top: .8rem; }
+    .mode { padding: .9rem; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); }
+    .mode h3 { margin: 0 0 .3rem; }
+    .mode p { margin: 0; color: #c4ced8; }
+
+    .footer { padding: 1.5rem .25rem 0; color: var(--muted); font-size: .82rem; text-align: center; }
+
+    @media (min-width: 700px) {
+      .page { padding: 2rem 1.5rem 5rem; }
+      .quick-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .steps, .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">AQ-TLC Pro</p>
+      <h1>Mobile quick guide</h1>
+      <p class="lede">A practical guide to preparing a plate image, finding lanes, checking peaks and exporting results from the touch-first app.</p>
+      <span class="platform">Mobile workflow · camera or gallery</span>
+    </header>
+
+    <nav class="quick-nav" aria-label="Guide sections">
+      <a href="#workflow">Start an analysis</a>
+      <a href="#image">Image tools</a>
+      <a href="#profile">Peak editing</a>
+      <a href="#results">Results &amp; reports</a>
+    </nav>
+
+    <section id="workflow">
+      <h2>Start-to-finish workflow</h2>
+      <div class="steps">
+        <div class="step"><b>Load the plate image</b>Choose <strong>Upload image</strong> for a gallery/file image or <strong>Take photo</strong> to use the rear camera. Images over 16 MB are rejected; larger images are resized for mobile analysis.</div>
+        <div class="step"><b>Prepare the image</b>Use <strong>Crop</strong> to remove unused background and <strong>Rotate</strong> to make the plate upright. Crop and rotate before drawing annotations.</div>
+        <div class="step"><b>Mark the run</b>Use <strong>Lines</strong> to drag one line across the origin and one across the solvent front. Keep the origin below the front. Then choose <strong>Marks</strong> and tap once at each sample application position along the origin.</div>
+        <div class="step"><b>Calculate lanes</b>Tap the green <strong>radar button</strong> in the right-hand controls. A blue lane box is created for each spotting mark and the first lane becomes active.</div>
+        <div class="step"><b>Review the profile</b>Open <strong>Profile</strong>. Tune Polarity, Sensitivity, Distance and Width if automatic peak detection needs adjustment, then correct individual peaks where required.</div>
+        <div class="step"><b>Quantify and report</b>Open <strong>Table</strong>, choose Rel. %, Calib. or MW, enter any standards, then return to <strong>Profile</strong> and choose <strong>PDF lane</strong> or <strong>PDF all</strong>.</div>
+      </div>
+      <div class="callout warning"><strong>Session warning:</strong> finish and export your report before refreshing, closing the tab, changing browser or moving to another device. The current Mobile app does not provide a project-file export for reopening an analysis later.</div>
+    </section>
+
+    <section id="image">
+      <h2>Image tab: tools and gestures</h2>
+      <ul>
+        <li><strong>Pan:</strong> drag empty image space to move the plate. Pinch with two fingers to zoom and pan together; a mouse wheel also zooms.</li>
+        <li><strong>Crop:</strong> drag a box around the required region and release to apply it. Cropping creates a new working image and clears existing lines, marks and lanes.</li>
+        <li><strong>Rotate:</strong> drag horizontally for fine rotation. A double-tap/double-click rotates 90° clockwise.</li>
+        <li><strong>Lines:</strong> drag horizontally across the plate. The lower boundary is treated as the origin and the upper boundary as the solvent front.</li>
+        <li><strong>Marks:</strong> tap each sample position. A mark placed near the origin line snaps onto it.</li>
+        <li><strong>Select:</strong> drag a line, mark or lane to reposition it. Tap a lane to make it the active lane shown in Profile and Table.</li>
+      </ul>
+
+      <h3>Top controls</h3>
+      <ul>
+        <li><strong>New</strong> discards the current analysis after confirmation and returns to image selection.</li>
+        <li><strong>Reset</strong> restores the original uploaded image and clears crop, rotation, lines, marks and lanes.</li>
+        <li><strong>Undo</strong> restores the most recent recorded edit. Up to 50 recent snapshots are held during the session.</li>
+        <li><strong>Settings</strong> contains RGB projection presets, a custom weighting label and Invert colours.</li>
+      </ul>
+      <div class="callout"><strong>RGB controls are image-processing weightings.</strong> The wavelength labels do not turn the phone into a monochromator or spectrometer, and no wavelength-bandwidth control is exposed.</div>
+    </section>
+
+    <section id="profile">
+      <h2>Profile tab: detection and manual editing</h2>
+      <p>Automatic peaks are generated when lanes are calculated. The compact controls beside the image apply to the analysis:</p>
+      <ul>
+        <li><strong>Polarity D / S / B:</strong> choose default, dark-spot or bright-spot signal handling to match the appearance of the plate.</li>
+        <li><strong>Sensitivity:</strong> controls how readily weaker peaks are detected.</li>
+        <li><strong>Distance:</strong> controls the minimum separation between detected peaks.</li>
+        <li><strong>Width:</strong> controls the threshold used for the automatic peak display band and the initial width of a newly added manual peak.</li>
+        <li><strong>↺:</strong> restores the three peak-detection settings to their defaults.</li>
+      </ul>
+
+      <h3>Edit menu</h3>
+      <ul>
+        <li><strong>Add:</strong> tap an empty position on the densitogram to add a manual peak.</li>
+        <li><strong>Move:</strong> drag a peak apex to reposition it, or drag either vertical integration boundary to resize the measured interval.</li>
+        <li><strong>Delete:</strong> tap a peak apex to remove that peak.</li>
+        <li><strong>Clear:</strong> removes every peak from the active lane.</li>
+        <li><strong>Detect:</strong> runs automatic detection again with the current settings and replaces manual edits.</li>
+      </ul>
+
+      <h3>View menu</h3>
+      <p>Choose <strong>Zoom</strong> and drag on the chart, choose <strong>Pan</strong> to move a zoomed chart, or choose <strong>Fit</strong> to return to the full profile. A mouse wheel can also zoom horizontally.</p>
+
+      <div class="legend" aria-label="Peak colour legend">
+        <div class="legend-item"><span class="dot gold"></span><span><strong>Gold</strong> — automatically detected peak.</span></div>
+        <div class="legend-item"><span class="dot red"></span><span><strong>Red with an asterisk</strong> — manually added or adjusted peak.</span></div>
+      </div>
+      <div class="callout"><strong>How area is measured:</strong> peak area is the baseline-corrected trapezoidal area of the normalized analytical profile between the two vertical integration boundaries. The shaded band is a visual aid.</div>
+    </section>
+
+    <section id="results">
+      <h2>Table tab: choose the result type</h2>
+      <div class="mode-grid">
+        <div class="mode">
+          <h3>Rel. %</h3>
+          <p>Reports each peak as a percentage of the total peak area in the active lane. <strong>AbsR</strong> is an optional response correction: corrected area is area divided by AbsR. Leave it at 1 when no correction is required.</p>
+        </div>
+        <div class="mode">
+          <h3>Calib.</h3>
+          <p>Set known peaks to <strong>S</strong> and enter their values; set unknowns to <strong>A</strong>. <strong>N</strong> excludes a peak from calibration. One standard gives a line through zero; two or more valid standards use linear regression across all lanes.</p>
+        </div>
+        <div class="mode">
+          <h3>MW</h3>
+          <p>For gels or blots, set at least two peaks with known positive molecular weights to <strong>S</strong>, then set unknowns to <strong>A</strong>. The app interpolates or extrapolates piecewise in log<sub>10</sub>(MW) versus Rf space.</p>
+        </div>
+      </div>
+      <p>Peak and lane names can be edited directly. Calibration standards are collected from every lane in the current image, not only the active lane.</p>
+
+      <h3>Export a report</h3>
+      <ul>
+        <li><strong>PDF lane</strong> prepares a report for the active lane.</li>
+        <li><strong>PDF all</strong> prepares a multi-page report for every lane.</li>
+        <li>The report uses the currently selected Table mode. In the print window choose <strong>Print</strong> or <strong>Save as PDF</strong>. If pop-ups are blocked, the app downloads a printable HTML report instead.</li>
+      </ul>
+    </section>
+
+    <section id="quality">
+      <h2>For more reliable results</h2>
+      <ul>
+        <li>Photograph the plate square-on with even illumination and minimal glare or shadow.</li>
+        <li>Keep the origin and solvent-front lines parallel and place them at the true physical boundaries.</li>
+        <li>Use compact, well-separated sample spots and avoid overloaded or streaked lanes.</li>
+        <li>Check every lane box, profile, integration boundary and standard assignment before reporting.</li>
+        <li>Treat AQ-TLC as an analytical aid. Validate image capture, detection and calibration against the requirements of your laboratory method.</li>
+      </ul>
+      <div class="callout danger"><strong>Data handling:</strong> the plate image is sent to the selected Streamlit app for analysis. Do not upload sensitive material until the deployment's access controls and your organisation's privacy requirements have been confirmed.</div>
+    </section>
+
+    <p class="footer">AQ-TLC Pro · Mobile quick guide</p>
+  </main>
+</body>
+</html>
