@@ -84,7 +84,12 @@ async function restoreInFlightProject() {
 }
 
 async function exportWithFeedback(scope) {
-  try { await exportReport(scope); setStatus('PDF report opened. Use Print or Save as PDF to export it.', 'success'); }
+  try {
+    const result = await exportReport(scope);
+    setStatus(result?.destination === 'download'
+      ? 'Printable report downloaded. Open it and use Print or Save as PDF.'
+      : 'PDF report opened. Use Print or Save as PDF to export it.', 'success');
+  }
   catch (error) { setStatus(error.message || 'The report could not be created.', 'error'); }
 }
 

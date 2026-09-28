@@ -111,7 +111,7 @@ export async function exportReport(scope = 'lane') {
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AQ-TLC analytical report</title><style>body{font:14px system-ui,sans-serif;color:#222;margin:0 auto;max-width:1100px;padding:30px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0366d6;margin-bottom:22px}h1{color:#0366d6;margin:0}.images{border:1px solid #ddd;border-radius:8px;overflow:hidden}.images img{display:block;width:100%}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f6f8fa}.method{color:#555}.report-action{margin:0 0 20px;padding:9px 14px;font:600 14px system-ui,sans-serif;color:#fff;background:#0366d6;border:0;border-radius:6px}@media print{.report-page{page-break-after:always}.report-action{display:none}}</style></head><body><button class="report-action" onclick="window.print()">Print / Save as PDF</button>${sections}<script>window.addEventListener('load',function(){window.setTimeout(function(){window.print();},200);});<\/script></body></html>`;
     if (popup) {
       popup.document.open(); popup.document.write(html); popup.document.close();
-      return;
+      return { destination: 'print' };
     }
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -119,6 +119,7 @@ export async function exportReport(scope = 'lane') {
     anchor.href = url; anchor.download = `${safeFilename(lanes[0]?.name)}_report.html`;
     document.body.append(anchor); anchor.click(); anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 0);
+    return { destination: 'download' };
   } catch (error) {
     popup?.close();
     throw error;
