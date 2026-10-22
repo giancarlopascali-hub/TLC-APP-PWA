@@ -1,5 +1,5 @@
 import { analysisProfileFor, calculateRf, displayProfileFor, remeasurePeak } from './analysis.js';
-import { buildAreaCalibration, buildMwCalibration, relativeQuantitation } from './calibration.js';
+import { buildAreaCalibration, buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
 import { render } from './render.js';
 import { saveUndoSnapshot, persistProject } from './storage.js';
 import { $, state } from './state.js';
@@ -230,30 +230,30 @@ export function renderTable() {
   const areaCalibration = buildAreaCalibration(state.lanes); const mwCalibration = buildMwCalibration(state.lanes); const relative = relativeQuantitation(lane.peaks);
   if (state.integrationMethod === 'calibration' && areaCalibration.error) appendMessage(body, areaCalibration.error, headers.length);
   if (state.integrationMethod === 'mw_calibration' && mwCalibration.error) appendMessage(body, mwCalibration.error, headers.length);
-  relative.forEach((peak, index) => appendPeakRow(body, peak, index, areaCalibration, mwCalibration));
+  orderPeakRows(relative).forEach(({ peak, sourceIndex }, displayIndex) => appendPeakRow(body, peak, sourceIndex, displayIndex, areaCalibration, mwCalibration));
 }
 
 function appendMessage(body, text, span) {
   const row = document.createElement('tr'); const cell = makeElement('td', { className: 'table-message', text }); cell.colSpan = span; row.append(cell); body.append(row);
 }
 
-function appendPeakRow(body, peak, index, areaCalibration, mwCalibration) {
+function appendPeakRow(body, peak, sourceIndex, displayIndex, areaCalibration, mwCalibration) {
   const row = document.createElement('tr'); if (peak.manual) row.className = 'manual-peak-row';
   const lane = state.activeLane;
-  const name = document.createElement('input'); name.type = 'text'; name.value = peak.name || `#${index + 1}`; name.maxLength = 80;
-  name.addEventListener('change', () => { lane.peaks[index].name = name.value.trim(); persistProject(); });
+  const name = document.createElement('input'); name.type = 'text'; name.value = peak.name || `#${displayIndex + 1}`; name.maxLength = 80;
+  name.addEventListener('change', () => { lane.peaks[sourceIndex].name = name.value.trim(); persistProject(); });
   addCell(row, name); addCell(row, Number(peak.rf || 0).toFixed(3));
   if (state.integrationMethod === 'relative') {
     addCell(row, Number(peak.area || 0).toFixed(1)); addCell(row, `${peak.relativePercent.toFixed(1)}%`);
-    const ratio = numberInput(peak.absRatio ?? 1, .1, value => { lane.peaks[index].absRatio = value > 0 ? value : 1; renderTable(); persistProject(); });
+    const ratio = numberInput(peak.absRatio ?? 1, .1, value => { lane.peaks[sourceIndex].absRatio = value > 0 ? value : 1; renderTable(); persistProject(); });
     addCell(row, ratio); addCell(row, `${peak.correctedPercent.toFixed(1)}%`);
   } else if (state.integrationMethod === 'calibration') {
-    addCell(row, Number(peak.area || 0).toFixed(1)); addCell(row, typeSelect(peak, index));
-    if (peak.type === 'S') addCell(row, numberInput(peak.calibrationValue ?? '', .01, value => { lane.peaks[index].calibrationValue = value; renderTable(); persistProject(); }));
+    addCell(row, Number(peak.area || 0).toFixed(1)); addCell(row, typeSelect(peak, sourceIndex));
+    if (peak.type === 'S') addCell(row, numberInput(peak.calibrationValue ?? '', .01, value => { lane.peaks[sourceIndex].calibrationValue = value; renderTable(); persistProject(); }));
     else addCell(row, peak.type === 'A' && areaCalibration.evaluate ? areaCalibration.evaluate(peak.area).toFixed(2) : '—');
   } else {
-    addCell(row, typeSelect(peak, index));
-    if (peak.type === 'S') addCell(row, numberInput(peak.mwValue ?? '', .1, value => { lane.peaks[index].mwValue = value; renderTable(); persistProject(); }));
+    addCell(row, typeSelect(peak, sourceIndex));
+    if (peak.type === 'S') addCell(row, numberInput(peak.mwValue ?? '', .1, value => { lane.peaks[sourceIndex].mwValue = value; renderTable(); persistProject(); }));
     else {
       const estimate = peak.type === 'A' && mwCalibration.evaluate ? mwCalibration.evaluate(peak.rf) : null;
       addCell(row, estimate == null ? '—' : estimate.toFixed(1));

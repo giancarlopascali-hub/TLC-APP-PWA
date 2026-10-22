@@ -1,4 +1,4 @@
-import { buildAreaCalibration, buildMwCalibration, relativeQuantitation } from './calibration.js';
+import { buildAreaCalibration, buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
 import { state } from './state.js';
 
 /** The only serializer used for user-provided strings in printable reports. */
@@ -67,7 +67,7 @@ function reportRows(lane) {
   const method = state.integrationMethod;
   const areaCalibration = buildAreaCalibration(state.lanes);
   const mwCalibration = buildMwCalibration(state.lanes);
-  const relative = relativeQuantitation(lane.peaks);
+  const relative = orderPeakRows(relativeQuantitation(lane.peaks)).map(({ peak }) => peak);
   const headers = method === 'relative'
     ? ['Peak name', 'Rf', 'Area (AU)', '% area', 'Abs. ratio', '% corrected']
     : method === 'calibration'

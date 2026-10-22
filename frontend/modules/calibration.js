@@ -66,3 +66,16 @@ export function relativeQuantitation(peaks) {
     correctedPercent: correctedTotal > 0 ? peak.area / Math.max(Number.EPSILON, peak.absRatio) / correctedTotal * 100 : 0,
   }));
 }
+
+/** Sort table/report rows by Rf without changing the stored peak order.
+ * Keep sourceIndex so an edited row still updates its own peak after sorting.
+ */
+export function orderPeakRows(peaks) {
+  return (peaks || []).map((peak, sourceIndex) => ({ peak, sourceIndex }))
+    .sort((left, right) => {
+      const a = Number(left.peak.rf); const b = Number(right.peak.rf);
+      const aRf = Number.isFinite(a) ? a : Number.POSITIVE_INFINITY;
+      const bRf = Number.isFinite(b) ? b : Number.POSITIVE_INFINITY;
+      return aRf - bRf || left.sourceIndex - right.sourceIndex;
+    });
+}
