@@ -39,17 +39,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install pip-audit
-          # These exact Pillow advisories cannot be fixed while Streamlit
-          # requires Pillow<13. Keep the exception tied to the reviewed pins.
-          grep -Fxq 'streamlit==1.55.0' requirements.txt
-          grep -Fxq 'Pillow==12.3.0' requirements.txt
-          audit_args=()
-          while IFS= read -r advisory; do
-            [[ -z "$advisory" || "$advisory" == \#* ]] && continue
-            audit_args+=(--ignore-vuln "$advisory")
-          done < .github/pip-audit-streamlit-allowlist.txt
-          echo '::warning::Pillow 12.3.0 has known advisories; Streamlit currently requires Pillow<13. See the audit allowlist.'
-          python -m pip_audit -r requirements.txt "${audit_args[@]}"
+          python -m pip_audit -r requirements.txt
 
       - name: Compile Python modules
         run: python -m py_compile streamlit_app.py tlc_backend.py

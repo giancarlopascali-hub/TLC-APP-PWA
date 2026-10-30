@@ -1,10 +1,8 @@
 # Streamlit mobile candidate dependencies, pinned after Python 3.11 verification.
 # The legacy Hugging Face/Flask fallback has its own requirements-legacy.txt so
 # it cannot be installed accidentally by Streamlit Community Cloud.
-streamlit==1.55.0
+streamlit==1.66.1
 numpy==2.2.6
-# Streamlit 1.55.0 (and the latest 1.66.0) requires Pillow<13. Update this
-# together with Streamlit when it supports Pillow 13; see the CI audit allowlist.
-Pillow==12.3.0
+Pillow==13.0.0
 opencv-python-headless==4.13.0.92
 scipy==1.14.1
