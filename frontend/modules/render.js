@@ -9,7 +9,7 @@ let filteredSettings = null;
 
 function imageSource() {
   if (!state.imgEl || (!state.targetWavelength && !state.invertColors)) return state.imgEl;
-  const settings = `${state.targetWavelength ?? 'full'}:${state.invertColors}`;
+  const settings = `${state.targetWavelength ?? 'full'}:${state.wavelengthBandwidth}:${state.invertColors}`;
   if (filteredSource === state.imgEl && filteredSettings === settings && filteredImage) return filteredImage;
   const canvas = document.createElement('canvas');
   canvas.width = state.imgEl.naturalWidth || state.imgW;
@@ -18,7 +18,7 @@ function imageSource() {
   context.drawImage(state.imgEl, 0, 0, canvas.width, canvas.height);
   try {
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-    applyImageFilters(pixels.data, state.targetWavelength, state.invertColors);
+    applyImageFilters(pixels.data, state.targetWavelength, state.invertColors, state.wavelengthBandwidth);
     context.putImageData(pixels, 0, 0);
     filteredSource = state.imgEl;
     filteredSettings = settings;

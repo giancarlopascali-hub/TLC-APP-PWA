@@ -80,6 +80,54 @@ def test_image_pixel_limit_is_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
         tlc_backend.load_image(plate_with_dark_band())
 
 
+def test_rgb_window_changes_grayscale_and_rejects_out_of_range_width() -> None:
+    red = np.zeros((4, 4, 3), dtype=np.uint8)
+    red[:, :, 0] = 255
+    source = image_data_url(red)
+    assert np.all(tlc_backend.load_gray(source, target_wavelength=450, wavelength_bandwidth=0) == 0)
+    assert np.array_equal(
+        tlc_backend.load_gray(source, target_wavelength=450, wavelength_bandwidth=None),
+        tlc_backend.load_gray(source, target_wavelength=450, wavelength_bandwidth=0),
+    )
+    assert np.array_equal(
+        tlc_backend.load_gray(source, wavelength_bandwidth=50),
+        tlc_backend.load_gray(source, wavelength_bandwidth=0),
+    )
+    wider = tlc_backend.load_gray(source, target_wavelength=450, wavelength_bandwidth=50)
+    assert np.all(wider > 0)
+    assert np.array_equal(
+        tlc_backend.load_gray(source, target_wavelength=540.5, wavelength_bandwidth=2.5),
+        tlc_backend.load_gray(source, target_wavelength=541, wavelength_bandwidth=3),
+    )
+    with pytest.raises(tlc_backend.ParameterValidationError):
+        tlc_backend.load_gray(source, target_wavelength=540, wavelength_bandwidth=51)
+    assert tlc_backend.generate_profiles(
+        {"image": source, "lanes": [], "target_wavelength": 450, "wavelength_bandwidth": None}
+    )["results"] == []
+
+
+def test_rgb_window_changes_peak_detection_from_a_colour_band() -> None:
+    image = np.zeros((120, 40, 3), dtype=np.uint8)
+    image[50:59, 8:32, 0] = 255
+    payload = {
+        "image": image_data_url(image),
+        "lanes": [{"id": "red-band", "cx": 20, "cy": 60, "w": 24, "h": 110, "angle": 0}],
+        "peak_detection": True,
+        "peak_prominence": 80,
+        "peak_distance": 4,
+        "peak_threshold": 50,
+        "smooth_sigma": 1.0,
+        "polarity_mode": "bright",
+        "target_wavelength": 450,
+    }
+    target_only = tlc_backend.generate_profiles({**payload, "wavelength_bandwidth": 0})["results"][0]
+    wider = tlc_backend.generate_profiles({**payload, "wavelength_bandwidth": 50})["results"][0]
+    assert max(target_only["profile_analysis"]) == 0
+    assert not target_only["peaks"]
+    assert max(wider["profile_analysis"]) > 0
+    assert wider["peaks"]
+
+
 def test_crop_returns_a_jpeg_and_honours_normalised_negative_dimensions() -> None:
     source = np.zeros((30, 40, 3), dtype=np.uint8)
     source[:15, :, 0] = 255

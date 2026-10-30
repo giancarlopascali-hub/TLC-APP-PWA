@@ -22,15 +22,38 @@ export function wavelengthToRgb(wavelength) {
   return { r: r * factor, g: g * factor, b: b * factor };
 }
 
+/** Mean approximate RGB response across an inclusive, clipped ±nm window. */
+export function wavelengthWindowToRgb(wavelength, bandwidth = 0) {
+  const rawCenter = Number(wavelength);
+  const rawHalfWidth = Number(bandwidth);
+  if (!Number.isFinite(rawCenter) || rawCenter < 380 || rawCenter > 750) {
+    throw new RangeError('RGB projection target must be from 380 to 750 nm.');
+  }
+  if (!Number.isFinite(rawHalfWidth) || rawHalfWidth < 0 || rawHalfWidth > 50) {
+    throw new RangeError('RGB window must be from 0 to 50 nm.');
+  }
+  const center = Math.floor(rawCenter + 0.5);
+  const halfWidth = Math.floor(rawHalfWidth + 0.5);
+  const lower = Math.max(380, center - halfWidth);
+  const upper = Math.min(750, center + halfWidth);
+  let r = 0; let g = 0; let b = 0;
+  for (let nm = lower; nm <= upper; nm += 1) {
+    const weight = wavelengthToRgb(nm);
+    r += weight.r; g += weight.g; b += weight.b;
+  }
+  const count = upper - lower + 1;
+  return { r: r / count, g: g / count, b: b / count };
+}
+
 /** Mutate RGBA pixel data to match the backend's RGB weighting and inversion. */
-export function applyImageFilters(data, targetWavelength, invert = false) {
+export function applyImageFilters(data, targetWavelength, invert = false, bandwidth = 0) {
   const hasWavelength = targetWavelength !== null
     && targetWavelength !== undefined
     && targetWavelength !== 'full';
   let projection = { r: 1, g: 1, b: 1 };
   let redWeight = 0.299; let greenWeight = 0.587; let blueWeight = 0.114;
   if (hasWavelength) {
-    projection = wavelengthToRgb(targetWavelength);
+    projection = wavelengthWindowToRgb(targetWavelength, bandwidth);
     const total = projection.r + projection.g + projection.b;
     if (total > 0) {
       redWeight = projection.r / total;

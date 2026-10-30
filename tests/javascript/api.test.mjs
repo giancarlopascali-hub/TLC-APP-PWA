@@ -17,7 +17,7 @@ globalThis.window = {
   },
 };
 
-const { clearPendingRequests, hasPendingRequests, registerApiHandlers, requestCrop, requestProfiles } = await import('../../frontend/modules/api.js');
+const { buildProfilePayload, clearPendingRequests, hasPendingRequests, registerApiHandlers, requestCrop, requestProfiles } = await import('../../frontend/modules/api.js');
 
 function sentRequests() {
   return outbound.filter(item => item.message.type === 'streamlit:setComponentValue').map(item => item.message.value);
@@ -54,6 +54,15 @@ function profileResponse(request, id) {
     error: null,
   };
 }
+
+test('profile requests carry the RGB window to the analysis service', () => {
+  const settings = {
+    peakProminence: 40, peakDistance: 8, peakThreshold: 50,
+    polarityMode: 'default', targetWavelength: 450, wavelengthBandwidth: 25,
+    invertColors: false,
+  };
+  assert.equal(buildProfilePayload('image', [], settings, true).wavelength_bandwidth, 25);
+});
 
 test('a stale Streamlit profile response cannot overwrite a newer profile request', () => {
   const received = [];

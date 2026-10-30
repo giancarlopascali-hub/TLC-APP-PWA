@@ -18,6 +18,7 @@ export const DEFAULT_ANALYSIS = Object.freeze({
   peakThreshold: 50,
   targetWavelength: null,
   wavelengthPreset: 'full',
+  wavelengthBandwidth: 0,
   invertColors: false,
 });
 

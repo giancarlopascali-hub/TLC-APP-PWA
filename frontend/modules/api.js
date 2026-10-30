@@ -213,6 +213,7 @@ export function buildProfilePayload(image, lanes, settings, detectPeaks) {
     smooth_sigma: SMOOTH_SIGMA,
     polarity_mode: settings.polarityMode,
     target_wavelength: settings.targetWavelength,
+    wavelength_bandwidth: settings.wavelengthBandwidth,
     invert_colors: Boolean(settings.invertColors),
   };
 }

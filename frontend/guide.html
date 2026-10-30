@@ -133,9 +133,9 @@
         <li><strong>New</strong> discards the current analysis after confirmation and returns to image selection.</li>
         <li><strong>Reset</strong> restores the original uploaded image and clears crop, rotation, lines, marks and lanes.</li>
         <li><strong>Undo</strong> restores the most recent recorded edit. Up to 50 recent snapshots are held during the session.</li>
-        <li><strong>Settings</strong> contains RGB projection presets, a custom weighting label and Invert colours.</li>
+        <li><strong>Settings</strong> contains RGB projection presets, a custom 380–750 nm target, a Window ±nm slider and number field, and Invert colours.</li>
       </ul>
-      <div class="callout"><strong>RGB controls are image-processing weightings.</strong> The wavelength labels do not turn the phone into a monochromator or spectrometer, and no wavelength-bandwidth control is exposed.</div>
+      <div class="callout"><strong>RGB controls are image-processing weightings.</strong> Window 0 uses the selected target only; a wider window averages approximate RGB weights from target minus to target plus the entered nm value, clipped to 380–750. This is not a physical bandwidth measurement. Changing a filter reruns automatic detection and replaces manual peak edits.</div>
     </section>
 
     <section id="profile">

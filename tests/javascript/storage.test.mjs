@@ -33,6 +33,7 @@ function resetState() {
   state.peakThreshold = 50;
   state.targetWavelength = null;
   state.wavelengthPreset = 'full';
+  state.wavelengthBandwidth = 0;
   state.invertColors = false;
 }
 
@@ -59,6 +60,19 @@ test('temporary workspace snapshots retain the versioned project shape', () => {
   const exported = JSON.parse(snapshotProject());
   assert.equal(exported.schema_version, 2);
   assert.equal(exported.image.current, state.imgB64);
+});
+
+test('project migration keeps full RGB unfiltered and restores the RGB window', () => {
+  const legacy = migrateProject({ schema_version: 2, analysis: { target_wavelength: null } });
+  assert.equal(legacy.analysis.target_wavelength, null);
+  assert.equal(legacy.analysis.wavelength_bandwidth, 0);
+  resetState();
+  state.targetWavelength = 540;
+  state.wavelengthPreset = 'custom';
+  state.wavelengthBandwidth = 25;
+  const saved = JSON.parse(snapshotProject());
+  assert.equal(saved.analysis.wavelength_bandwidth, 25);
+  assert.equal(migrateProject(saved).analysis.wavelength_bandwidth, 25);
 });
 
 test('storage quota failures remain explicit and do not throw through the UI', () => {

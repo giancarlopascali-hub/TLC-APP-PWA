@@ -30,6 +30,7 @@ function projectPayload() {
       peak_threshold: state.peakThreshold,
       target_wavelength: state.targetWavelength,
       wavelength_preset: state.wavelengthPreset,
+      wavelength_bandwidth: state.wavelengthBandwidth,
       invert_colors: state.invertColors,
     },
   };
@@ -51,6 +52,13 @@ export function migrateProject(rawProject) {
   const annotations = source.annotations || {};
   const analysis = source.analysis || {};
   const threshold = Number(analysis.peak_threshold ?? 50);
+  const rawWavelength = Number(analysis.target_wavelength);
+  const targetWavelength = analysis.target_wavelength != null && analysis.target_wavelength !== ''
+    && Number.isFinite(rawWavelength) && rawWavelength >= 380 && rawWavelength <= 750
+    ? Math.floor(rawWavelength + 0.5) : null;
+  const rawBandwidth = Number(analysis.wavelength_bandwidth);
+  const wavelengthBandwidth = Number.isFinite(rawBandwidth) && rawBandwidth >= 0 && rawBandwidth <= 50
+    ? Math.floor(rawBandwidth + 0.5) : 0;
   return {
     schema_version: PROJECT_SCHEMA_VERSION,
     image: {
@@ -71,8 +79,9 @@ export function migrateProject(rawProject) {
       peak_prominence: Math.max(1, Math.min(100, Number(analysis.peak_prominence) || 40)),
       peak_distance: Math.max(1, Math.min(50, Math.round(Number(analysis.peak_distance) || 8))),
       peak_threshold: Math.max(0, Math.min(100, Number(analysis.peak_threshold) || 50)),
-      target_wavelength: Number.isFinite(Number(analysis.target_wavelength)) ? Number(analysis.target_wavelength) : null,
+      target_wavelength: targetWavelength,
       wavelength_preset: typeof analysis.wavelength_preset === 'string' ? analysis.wavelength_preset : 'full',
+      wavelength_bandwidth: wavelengthBandwidth,
       invert_colors: Boolean(analysis.invert_colors),
     },
   };
@@ -117,6 +126,7 @@ export function restoreProject(project) {
   state.peakThreshold = migrated.analysis.peak_threshold;
   state.targetWavelength = migrated.analysis.target_wavelength;
   state.wavelengthPreset = migrated.analysis.wavelength_preset;
+  state.wavelengthBandwidth = migrated.analysis.wavelength_bandwidth;
   state.invertColors = migrated.analysis.invert_colors;
   replaceActiveReferences();
   return migrated;

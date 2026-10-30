@@ -92,9 +92,16 @@
 
   <section id="settings-sheet" class="settings-sheet hidden" aria-label="Image and analysis settings" aria-modal="true" role="dialog">
     <div class="settings-card"><header><h2>Analysis settings</h2><button id="btn-close-settings" type="button" aria-label="Close settings">×</button></header>
-      <div class="settings-section"><h3>RGB projection</h3><p>Choose a display/analysis weighting. Wavelength labels are RGB approximations, not physical spectrometer settings.</p><div class="preset-grid"><button class="wl-preset-btn active" data-wl="full" type="button">Full RGB</button><button class="wl-preset-btn" data-wl="450" type="button">Blue</button><button class="wl-preset-btn" data-wl="540" type="button">Green</button><button class="wl-preset-btn" data-wl="570" type="button">Yellow</button><button class="wl-preset-btn" data-wl="650" type="button">Red</button></div><label>Custom RGB weighting label <input id="wl-custom" type="number" min="380" max="750" value="540" inputmode="numeric"></label></div>
+      <div class="settings-section">
+        <h3>RGB projection</h3>
+        <p>Choose a display/analysis weighting from the photo's RGB channels. Wavelength labels and the window are approximations, not physical spectrometer settings.</p>
+        <div class="preset-grid"><button class="wl-preset-btn active" data-wl="full" type="button">Full RGB</button><button class="wl-preset-btn" data-wl="450" type="button">Blue 450</button><button class="wl-preset-btn" data-wl="540" type="button">Green 540</button><button class="wl-preset-btn" data-wl="570" type="button">Yellow 570</button><button class="wl-preset-btn" data-wl="650" type="button">Red 650</button></div>
+        <label>Custom target (nm) <input id="wl-custom" type="number" min="380" max="750" step="1" value="540" inputmode="numeric"></label>
+        <label>Window ±nm <input id="wl-bandwidth-number" type="number" min="0" max="50" step="1" value="0" inputmode="numeric"></label>
+        <input id="wl-bandwidth-slider" type="range" min="0" max="50" step="1" value="0" style="width:100%;padding:0;accent-color:#58a6ff" aria-label="RGB projection window, plus or minus nanometres">
+        <p>Window 0 uses the selected target only. A wider window averages the approximate RGB weighting over the selected range. Changing these settings reruns peak detection and replaces manual peak edits.</p>
+      </div>
       <div class="settings-section"><h3>Image</h3><button id="btn-invert-colors" class="setting-toggle" type="button">Invert colours</button></div>
-      <p class="settings-note">Bandwidth is intentionally not exposed until a validated analytical model is available.</p>
     </div>
   </section>
   <script type="module" src="app.js"></script>

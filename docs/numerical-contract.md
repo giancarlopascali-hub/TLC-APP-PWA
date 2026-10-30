@@ -4,6 +4,28 @@ This document is the shared contract for the mobile Python backend and browser
 calculation helpers.  Synthetic cases in
 `tests/fixtures/numerical_cases.json` are the minimum conformance set.
 
+## RGB projection window
+
+The default **Full RGB** setting shows the original image and uses the normal
+RGB-to-grayscale conversion for analysis. A preset or custom target accepts
+380–750 nm. The **Window ±nm** control accepts 0–50 nm and defaults to 0.
+Both values are checked against their raw limits and rounded to the nearest
+integer with `floor(value + 0.5)` before calculation.
+
+For a target `c` and half-width `w`, sample every integer nm from
+`max(380, c-w)` through `min(750, c+w)`, inclusive. Average the existing
+`wavelength_to_rgb` red, green, and blue responses over these samples. The
+preview uses that averaged RGB vector as its tint. Analysis divides each
+component by the vector sum, then applies those three normalized weights to
+the photo's RGB pixels to form grayscale. Window 0 therefore preserves the
+previous target-only result. Full RGB ignores the window. Invert is applied
+after projection. Filter changes rerun automatic peak detection, replacing
+manual peak edits in the current lanes.
+
+This is a digital weighting of a three-channel photograph. The target and
+window labels do not describe measured light at those wavelengths or a
+physical spectral bandwidth.
+
 ## Signals
 
 For each lane, the backend returns two arrays in the same direction:

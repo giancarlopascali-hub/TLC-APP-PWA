@@ -30,7 +30,8 @@ rollback.
   integration bounds
 - Relative, area-calibration and molecular-weight calibration modes
 - Printable active-lane and all-lane reports
-- RGB image-projection controls and colour inversion
+- RGB image-projection controls with a custom target, adjustable ±nm window,
+  and colour inversion
 
 See [the numerical contract](docs/numerical-contract.md) and
 [component protocol](docs/protocol.md) for the implementation contracts.
@@ -47,8 +48,9 @@ Plate images are sent to the selected Streamlit deployment for analysis. Do
 not upload sensitive material until the deployment access mode and the
 organisation's privacy requirements have been confirmed.
 
-RGB projection controls are image-processing weightings. They are not a
-physical monochromator, spectrometer or measured wavelength bandwidth. AQ-TLC
+RGB projection controls, including the adjustable window, are image-processing
+weightings. They are not a physical monochromator, spectrometer or measured
+wavelength bandwidth. AQ-TLC
 is an analytical aid and must be validated for the intended method, plate
 chemistry and imaging conditions.
 

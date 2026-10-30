@@ -69,12 +69,19 @@ export function setupSettings(onChanged) {
     const value = button.dataset.wl; state.wavelengthPreset = value; state.targetWavelength = value === 'full' ? null : Number(value); syncControls(); onChanged(false, 'render'); onChanged(true);
   }));
   $('wl-custom')?.addEventListener('change', event => {
-    const value = Math.max(380, Math.min(750, Number(event.target.value) || 540)); state.wavelengthPreset = 'custom'; state.targetWavelength = value; event.target.value = String(value); syncControls(); onChanged(false, 'render'); onChanged(true);
+    const value = Math.floor(Math.max(380, Math.min(750, Number(event.target.value) || 540)) + 0.5); state.wavelengthPreset = 'custom'; state.targetWavelength = value; event.target.value = String(value); syncControls(); onChanged(false, 'render'); onChanged(true);
   });
+  const changeWindow = event => {
+    const value = Math.floor(Math.max(0, Math.min(50, Number(event.target.value) || 0)) + 0.5);
+    state.wavelengthBandwidth = value;
+    syncControls(); onChanged(false, 'render'); onChanged(true);
+  };
+  $('wl-bandwidth-number')?.addEventListener('change', changeWindow);
+  $('wl-bandwidth-slider')?.addEventListener('input', changeWindow);
 }
 
 export function syncControls() {
-  const values = { 'peak-sens': state.peakProminence, 'peak-res': state.peakDistance, 'peak-width': state.peakThreshold, 'wl-custom': state.targetWavelength ?? 540 };
+  const values = { 'peak-sens': state.peakProminence, 'peak-res': state.peakDistance, 'peak-width': state.peakThreshold, 'wl-custom': state.targetWavelength ?? 540, 'wl-bandwidth-number': state.wavelengthBandwidth, 'wl-bandwidth-slider': state.wavelengthBandwidth };
   Object.entries(values).forEach(([id, value]) => { if ($(id)) $(id).value = value; });
   document.querySelectorAll('.mode-btn').forEach(button => button.classList.toggle('active', button.dataset.mode === state.polarityMode));
   document.querySelectorAll('.mode-item').forEach(button => button.classList.toggle('active', button.dataset.imode === state.integrationMethod));

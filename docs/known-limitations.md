@@ -6,8 +6,9 @@
   workflow.
 - **RGB projection:** the colour controls are RGB image-weighting presets.
   They are not a physical monochromator, spectrometer, or measured wavelength.
-- **Wavelength bandwidth:** no bandwidth control is exposed because there is
-  no approved analytical model for it yet.
+- **RGB window:** the ±nm control averages approximate RGB weights across its
+  selected range. It is not a measured spectral bandwidth and cannot recover
+  wavelength-resolved information from a three-channel photograph.
 - **PWA/installability:** the new Streamlit component does not claim
   home-screen installation or offline processing. Verify actual browser
   behaviour on a deployed URL before making such a claim.

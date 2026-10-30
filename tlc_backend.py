@@ -343,25 +343,55 @@ def wavelength_to_rgb(wavelength: float) -> tuple[float, float, float]:
     return red * factor, green * factor, blue * factor
 
 
-def _normalise_wavelength(value: Any) -> float | None:
+def wavelength_window_to_rgb(wavelength: int, bandwidth: int = 0) -> tuple[float, float, float]:
+    """Average approximate RGB responses over an inclusive, clipped ±nm window."""
+    lower = max(380, wavelength - bandwidth)
+    upper = min(750, wavelength + bandwidth)
+    red = green = blue = 0.0
+    for nm in range(lower, upper + 1):
+        sample_red, sample_green, sample_blue = wavelength_to_rgb(nm)
+        red += sample_red
+        green += sample_green
+        blue += sample_blue
+    count = upper - lower + 1
+    return red / count, green / count, blue / count
+
+
+def _normalise_wavelength(value: Any) -> int | None:
     if value is None:
         return None
     if isinstance(value, str) and value.strip().lower() in {"", "full", "none", "null"}:
         return None
-    return _finite_number(
+    number = _finite_number(
         value,
         "target_wavelength",
         minimum=380.0,
         maximum=750.0,
     )
+    return math.floor(number + 0.5)
 
 
-def load_gray(data_url: Any, *, target_wavelength: Any = None) -> np.ndarray:
+def _normalise_wavelength_bandwidth(value: Any) -> int:
+    if value is None:
+        return 0
+    number = _finite_number(
+        value,
+        "wavelength_bandwidth",
+        minimum=0.0,
+        maximum=50.0,
+    )
+    return math.floor(number + 0.5)
+
+
+def load_gray(
+    data_url: Any, *, target_wavelength: Any = None, wavelength_bandwidth: Any = 0
+) -> np.ndarray:
     """Decode an image to grayscale, optionally using visible-spectrum weights."""
 
     wavelength = _normalise_wavelength(target_wavelength)
+    bandwidth = _normalise_wavelength_bandwidth(wavelength_bandwidth)
     key, _raw, _mime_type = _decode_data_url(data_url)
-    suffix = "gray" if wavelength is None else f"gray-wl-{wavelength:.1f}"
+    suffix = "gray" if wavelength is None else f"gray-wl-{wavelength}-bw-{bandwidth}"
     cache_key = f"{key}:{suffix}"
     cached = _image_cache.get(cache_key)
     if cached is not None:
@@ -371,7 +401,7 @@ def load_gray(data_url: Any, *, target_wavelength: Any = None) -> np.ndarray:
     if wavelength is None:
         gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
     else:
-        red, green, blue = wavelength_to_rgb(wavelength)
+        red, green, blue = wavelength_window_to_rgb(wavelength, bandwidth)
         total = red + green + blue
         if total > 0:
             red, green, blue = red / total, green / total, blue / total
@@ -501,7 +531,8 @@ class _ProfileSettings:
     smooth_sigma: float
     peak_threshold: float
     polarity_mode: str
-    target_wavelength: float | None
+    target_wavelength: int | None
+    wavelength_bandwidth: int
     invert_colors: bool
 
 
@@ -628,6 +659,7 @@ def _validate_profile_settings(data: Any) -> _ProfileSettings:
         peak_threshold=threshold_percent / 100.0,
         polarity_mode=polarity_mode,
         target_wavelength=_normalise_wavelength(payload.get("target_wavelength")),
+        wavelength_bandwidth=_normalise_wavelength_bandwidth(payload.get("wavelength_bandwidth", 0)),
         invert_colors=invert_colors,
     )
 
@@ -833,7 +865,11 @@ def generate_profiles(data: Any) -> dict[str, Any]:
     """
 
     settings = _validate_profile_settings(data)
-    image = load_gray(settings.image, target_wavelength=settings.target_wavelength)
+    image = load_gray(
+        settings.image,
+        target_wavelength=settings.target_wavelength,
+        wavelength_bandwidth=settings.wavelength_bandwidth,
+    )
     if settings.invert_colors:
         image = 255 - image
 
