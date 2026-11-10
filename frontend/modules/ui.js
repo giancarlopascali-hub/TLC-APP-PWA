@@ -1,4 +1,5 @@
 import { $, state } from './state.js';
+import { syncLaneWidthControl } from './lane_width.js';
 
 export function setStatus(message, kind = 'info') {
   state.status = { message, kind };
@@ -61,9 +62,11 @@ export function setupAnalysisControls(onChanged) {
   }));
 }
 
-export function setupSettings(onChanged) {
+export function setupSettings(onChanged, onLaneWidthInput, onLaneWidthCommit) {
   $('btn-settings')?.addEventListener('click', () => $('settings-sheet')?.classList.remove('hidden'));
   $('btn-close-settings')?.addEventListener('click', () => $('settings-sheet')?.classList.add('hidden'));
+  $('lane-width')?.addEventListener('input', event => onLaneWidthInput?.(event.target.value));
+  $('lane-width')?.addEventListener('change', event => onLaneWidthCommit?.(event.target.value));
   $('btn-invert-colors')?.addEventListener('click', () => { state.invertColors = !state.invertColors; syncControls(); onChanged(false, 'render'); onChanged(true); });
   document.querySelectorAll('.wl-preset-btn').forEach(button => button.addEventListener('click', () => {
     const value = button.dataset.wl; state.wavelengthPreset = value; state.targetWavelength = value === 'full' ? null : Number(value); syncControls(); onChanged(false, 'render'); onChanged(true);
@@ -87,6 +90,7 @@ export function syncControls() {
   document.querySelectorAll('.mode-item').forEach(button => button.classList.toggle('active', button.dataset.imode === state.integrationMethod));
   document.querySelectorAll('.wl-preset-btn').forEach(button => button.classList.toggle('active', button.dataset.wl === state.wavelengthPreset));
   $('btn-invert-colors')?.classList.toggle('active', state.invertColors);
+  syncLaneWidthControl(state);
 }
 
 export function setBusy(action, busy) {

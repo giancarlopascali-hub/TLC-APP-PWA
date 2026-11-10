@@ -110,8 +110,8 @@
         <div class="step"><b>Load the plate image</b>Choose <strong>Upload image</strong> for a gallery/file image or <strong>Take photo</strong> to use the rear camera. Images over 16 MB are rejected; larger images are resized for mobile analysis.</div>
         <div class="step"><b>Prepare the image</b>Use <strong>Crop</strong> to remove unused background and <strong>Rotate</strong> to make the plate upright. Crop and rotate before drawing annotations.</div>
         <div class="step"><b>Mark the run</b>Use <strong>Lines</strong> to drag one line across the origin and one across the solvent front. Keep the origin below the front. Then choose <strong>Marks</strong> and tap once at each sample application position along the origin.</div>
-        <div class="step"><b>Calculate lanes</b>Tap the green <strong>radar button</strong> in the right-hand controls. A blue lane box is created for each spotting mark and the first lane becomes active.</div>
-        <div class="step"><b>Review the profile</b>Open <strong>Profile</strong>. Tune Polarity, Sensitivity, Distance and Width if automatic peak detection needs adjustment, then correct individual peaks where required.</div>
+        <div class="step"><b>Calculate lanes</b>Tap the green <strong>radar button</strong> in the right-hand controls. A blue lane box is created for each spotting mark and the first lane becomes active. Use <strong>Settings → Common lane width</strong> to adjust all lane boxes together.</div>
+        <div class="step"><b>Review the profile</b>Open <strong>Profile</strong>. Tune Polarity, Sensitivity, Distance and Peak width % if automatic peak detection needs adjustment, then correct individual peaks where required.</div>
         <div class="step"><b>Quantify and report</b>Open <strong>Table</strong>, choose Rel. %, Calib. or MW, enter any standards, then return to <strong>Profile</strong> and choose <strong>PDF lane</strong> or <strong>PDF all</strong>.</div>
       </div>
       <div class="callout warning"><strong>Session warning:</strong> finish and export your report before refreshing, closing the tab, changing browser or moving to another device. The current Mobile app does not provide a project-file export for reopening an analysis later.</div>
@@ -133,8 +133,9 @@
         <li><strong>New</strong> discards the current analysis after confirmation and returns to image selection.</li>
         <li><strong>Reset</strong> restores the original uploaded image and clears crop, rotation, lines, marks and lanes.</li>
         <li><strong>Undo</strong> restores the most recent recorded edit. Up to 50 recent snapshots are held during the session.</li>
-        <li><strong>Settings</strong> contains RGB projection presets, a custom 380–750 nm target, a Window ±nm slider and number field, and Invert colours.</li>
+        <li><strong>Settings</strong> contains the common lane width, RGB projection presets, a custom 380–750 nm target, a Window ±nm slider and number field, and Invert colours.</li>
       </ul>
+      <div class="callout"><strong>Common lane width</strong> changes every lane to the same processed-image-pixel width. The maximum stops at the first overlap or image edge. Adjusting the slider recalculates all profiles and peaks. Any manual peak edits are replaced by that recalculation.</div>
       <div class="callout"><strong>RGB controls are image-processing weightings.</strong> Window 0 uses the selected target only; a wider window averages approximate RGB weights from target minus to target plus the entered nm value, clipped to 380–750. This is not a physical bandwidth measurement. Changing a filter reruns automatic detection and replaces manual peak edits.</div>
     </section>
 
@@ -145,7 +146,7 @@
         <li><strong>Polarity D / S / B:</strong> choose default, dark-spot or bright-spot signal handling to match the appearance of the plate.</li>
         <li><strong>Sensitivity:</strong> controls how readily weaker peaks are detected.</li>
         <li><strong>Distance:</strong> controls the minimum separation between detected peaks.</li>
-        <li><strong>Width:</strong> controls the threshold used for the automatic peak display band and the initial width of a newly added manual peak.</li>
+        <li><strong>Peak width %:</strong> controls the threshold used for the automatic peak display band and the initial width of a newly added manual peak.</li>
         <li><strong>↺:</strong> restores the three peak-detection settings to their defaults.</li>
       </ul>
 

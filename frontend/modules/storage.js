@@ -28,6 +28,7 @@ function projectPayload() {
       peak_prominence: state.peakProminence,
       peak_distance: state.peakDistance,
       peak_threshold: state.peakThreshold,
+      lane_width: state.laneWidth,
       target_wavelength: state.targetWavelength,
       wavelength_preset: state.wavelengthPreset,
       wavelength_bandwidth: state.wavelengthBandwidth,
@@ -79,6 +80,8 @@ export function migrateProject(rawProject) {
       peak_prominence: Math.max(1, Math.min(100, Number(analysis.peak_prominence) || 40)),
       peak_distance: Math.max(1, Math.min(50, Math.round(Number(analysis.peak_distance) || 8))),
       peak_threshold: Math.max(0, Math.min(100, Number(analysis.peak_threshold) || 50)),
+      lane_width: analysis.lane_width != null && Number.isFinite(Number(analysis.lane_width))
+        && Number(analysis.lane_width) >= 2 ? Number(analysis.lane_width) : null,
       target_wavelength: targetWavelength,
       wavelength_preset: typeof analysis.wavelength_preset === 'string' ? analysis.wavelength_preset : 'full',
       wavelength_bandwidth: wavelengthBandwidth,
@@ -119,6 +122,7 @@ export function restoreProject(project) {
   state.lines = migrated.annotations.lines;
   state.spottingMarks = migrated.annotations.spotting_marks;
   state.lanes = migrated.annotations.lanes;
+  state.laneWidth = migrated.analysis.lane_width ?? (state.lanes[0]?.w ?? null);
   state.integrationMethod = migrated.analysis.integration_method;
   state.polarityMode = migrated.analysis.polarity_mode;
   state.peakProminence = migrated.analysis.peak_prominence;

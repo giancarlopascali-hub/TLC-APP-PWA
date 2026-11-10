@@ -1,8 +1,9 @@
 import { hasPendingRequests, registerApiHandlers } from './api.js';
+import { applyCommonLaneWidth } from './lane_width.js';
 import { clearPeaks, redrawActiveChart, renderProfiles, renderTable } from './profiles.js';
 import { exportReport } from './reports.js';
 import { render } from './render.js';
-import { clearStoredProject, loadStoredProject, persistProject } from './storage.js';
+import { clearStoredProject, loadStoredProject, persistProject, saveUndoSnapshot } from './storage.js';
 import { $, state } from './state.js';
 import { stReady, stSetHeight } from './streamlit_bridge.js';
 import { setBusy, setStatus, setupAnalysisControls, setupProfileMenus, setupSettings, setupTabs, setupToolSelection, syncControls } from './ui.js';
@@ -23,9 +24,30 @@ export function init() {
     if (target === 'render') { render(); return; }
     if (recalculate) { persistProject(); requestDensitograms(true); }
   });
+  let laneWidthUndoSaved = false;
+  let laneWidthChanged = false;
+  const changeLaneWidth = requested => {
+    if (Number(requested) === state.laneWidth) return;
+    if (!laneWidthUndoSaved) {
+      saveUndoSnapshot();
+      laneWidthUndoSaved = true;
+    }
+    if (applyCommonLaneWidth(state, requested)) {
+      laneWidthChanged = true;
+      syncControls();
+      render();
+      persistProject();
+      requestDensitograms(true);
+    }
+  };
   setupSettings((recalculate, target) => {
     if (target === 'render') { render(); return; }
     if (recalculate) { persistProject(); requestDensitograms(true); }
+  }, changeLaneWidth, requested => {
+    changeLaneWidth(requested);
+    laneWidthUndoSaved = false;
+    if (laneWidthChanged && state.lanes.length) requestDensitograms(true, { coalesce: false });
+    laneWidthChanged = false;
   });
   setupProfileMenus({
     onClear: clearPeaks,

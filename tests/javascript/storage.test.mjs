@@ -25,6 +25,7 @@ function resetState() {
   state.lines = [];
   state.spottingMarks = [];
   state.lanes = [];
+  state.laneWidth = null;
   state.activeLane = null;
   state.integrationMethod = 'relative';
   state.polarityMode = 'default';
@@ -60,6 +61,16 @@ test('temporary workspace snapshots retain the versioned project shape', () => {
   const exported = JSON.parse(snapshotProject());
   assert.equal(exported.schema_version, 2);
   assert.equal(exported.image.current, state.imgB64);
+});
+
+test('temporary snapshots retain the selected common lane width', () => {
+  resetState();
+  state.lanes = [{ id: '1.1', cx: 10, cy: 5, w: 8, h: 8, angle: 0, peaks: [] }];
+  state.laneWidth = 8;
+  const saved = JSON.parse(snapshotProject());
+  assert.equal(saved.analysis.lane_width, 8);
+  assert.equal(migrateProject(saved).analysis.lane_width, 8);
+  assert.equal(migrateProject({ schema_version: 2 }).analysis.lane_width, null);
 });
 
 test('project migration keeps full RGB unfiltered and restores the RGB window', () => {

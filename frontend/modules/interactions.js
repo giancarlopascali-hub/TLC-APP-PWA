@@ -1,9 +1,11 @@
 import { canvasToImagePosition, distance, imageCanvasPosition, midpoint } from './coords.js';
+import { applyCommonLaneWidth } from './lane_width.js';
 import { saveUndoSnapshot, persistProject } from './storage.js';
 import { $, state } from './state.js';
 import { render } from './render.js';
 import { renderProfiles, renderTable } from './profiles.js';
-import { applyCrop } from './workspace.js';
+import { setStatus, syncControls } from './ui.js';
+import { applyCrop, requestDensitograms } from './workspace.js';
 
 export function setupCanvasEvents() {
   const canvas = $('canvas-main'); if (!canvas) return;
@@ -22,7 +24,7 @@ function pointerDown(event) {
     const lane = state.lanes.find(item => { const positioned = imageCanvasPosition(item.cx, item.cy, state.imgW, state.imgH, scale, scale, state.imageRotation); return Math.abs(point.cx - positioned.cx) < item.w * scale / 2 && Math.abs(point.cy - positioned.cy) < item.h * scale / 2; });
     if (mark) { saveUndoSnapshot(); state.activeMark = mark; state.activeLine = null; state.activeLane = null; transient.editingField = 'move-mark'; }
     else if (line) { saveUndoSnapshot(); state.activeLine = line; state.activeMark = null; state.activeLane = null; transient.editingField = 'move-line'; }
-    else if (lane) { saveUndoSnapshot(); state.activeLane = lane; state.activeLine = null; state.activeMark = null; transient.editingField = state.activeTool === 'select' ? 'select-lane' : 'move-lane'; renderProfiles(); renderTable(); }
+    else if (lane) { saveUndoSnapshot(); state.activeLane = lane; state.activeLine = null; state.activeMark = null; transient.editingField = state.activeTool === 'select' ? 'select-lane' : 'move-lane'; transient.laneDragStart = { cx: lane.cx, cy: lane.cy }; transient.laneMoved = false; renderProfiles(); renderTable(); }
     else { state.activeMark = null; state.activeLine = null; state.activeLane = null; if (state.activeTool === 'pan') transient.isPanning = true; transient.viewStart = { ...state.view }; }
   } else if (state.activeTool === 'roi') {
     transient.roiRect = { x: point.x, y: point.y, w: 1, h: 1 };
@@ -53,8 +55,8 @@ function pointerMove(event) {
   else if (transient.isRotating) state.imageRotation = transient.rotateStart + (event.clientX - transient.mStart.x) * .002;
   else if (transient.editingField === 'move-mark') { state.activeMark.x = point.x; state.activeMark.y = point.y; }
   else if (transient.editingField === 'move-line') { state.activeLine.cx = point.x; state.activeLine.cy = point.y; }
-  else if (transient.editingField === 'move-lane') { state.activeLane.cx = point.x; state.activeLane.cy = point.y; }
-  else if (transient.editingField === 'select-lane' && (Math.abs(event.clientX - transient.mStart.x) > 10 || Math.abs(event.clientY - transient.mStart.y) > 10)) { transient.editingField = 'move-lane'; state.activeLane.cx = point.x; state.activeLane.cy = point.y; }
+  else if (transient.editingField === 'move-lane') { state.activeLane.cx = point.x; state.activeLane.cy = point.y; transient.laneMoved = true; }
+  else if (transient.editingField === 'select-lane' && (Math.abs(event.clientX - transient.mStart.x) > 10 || Math.abs(event.clientY - transient.mStart.y) > 10)) { transient.editingField = 'move-lane'; state.activeLane.cx = point.x; state.activeLane.cy = point.y; transient.laneMoved = true; }
   else if (transient.editingField === 'resize-line') { const scale = canvas.width / state.imgW; state.activeLine.w = Math.abs(point.cx - imageCanvasPosition(state.activeLine.cx, state.activeLine.cy, state.imgW, state.imgH, scale, scale, state.imageRotation).cx) * 2 / scale; }
   else if (transient.roiRect && state.activeTool === 'roi') { transient.roiRect.w = point.x - transient.roiRect.x; transient.roiRect.h = point.y - transient.roiRect.y; }
   render();
@@ -63,7 +65,22 @@ function pointerMove(event) {
 function pointerUp(event) {
   const transient = state.transient; transient.activePointers.delete(event.pointerId); if (transient.activePointers.size < 2) { transient.lastPinchDist = 0; transient.lastMidpoint = null; }
   if (state.activeTool === 'roi' && transient.roiRect && Math.abs(transient.roiRect.w) > 5 && Math.abs(transient.roiRect.h) > 5) applyCrop();
+  if (transient.editingField === 'move-lane' && transient.laneMoved && state.activeLane) {
+    const previousWidth = state.laneWidth ?? state.activeLane.w;
+    if (applyCommonLaneWidth(state, previousWidth)) {
+      syncControls();
+      requestDensitograms(state.laneWidth !== previousWidth, { coalesce: false });
+    } else if (transient.laneDragStart) {
+      state.activeLane.cx = transient.laneDragStart.cx;
+      state.activeLane.cy = transient.laneDragStart.cy;
+      applyCommonLaneWidth(state, previousWidth);
+      setStatus('These lanes are too close to remain separate. Move the lane farther away.', 'error');
+      syncControls();
+    }
+  }
+  transient.laneDragStart = null; transient.laneMoved = false;
   if (transient.editingField) persistProject(); transient.dragStart = null; transient.isPanning = false; transient.isRotating = false; transient.editingField = null;
+  render();
 }
 
 function doubleClick() { if (state.activeTool === 'rotate_img') { saveUndoSnapshot(); state.imageRotation += Math.PI / 2; render(); persistProject(); } }

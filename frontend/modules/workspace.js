@@ -3,6 +3,7 @@ import { normaliseRect } from './coords.js';
 import { migrateLaneSchema, remeasurePeak } from './analysis.js';
 import { buildProfilePayload, clearPendingRequests, requestCrop, requestProfiles } from './api.js';
 import { buildDesktopCompatibleLanes } from './lane_geometry.js';
+import { applyCommonLaneWidth } from './lane_width.js';
 import { clearStoredProject, persistProject, restoreProject, saveUndoSnapshot } from './storage.js';
 import { $, replaceActiveReferences, state } from './state.js';
 import { render } from './render.js';
@@ -34,6 +35,7 @@ export function setImage(dataUrl, { original = state.originalB64, clearAnnotatio
   state.imgB64 = dataUrl; state.originalB64 = original || dataUrl;
   if (clearAnnotations) {
     state.lines = []; state.spottingMarks = []; state.lanes = []; state.activeLane = null; state.activeLine = null; state.activeMark = null;
+    state.laneWidth = null;
     state.imageRotation = 0; state.view = { zoom: 1, dx: 0, dy: 0 }; state.chartView = { zoom: 1, offset: 0 };
   }
   return loadImage(dataUrl).then(image => {
@@ -104,10 +106,21 @@ export function calculateLanes() {
     imageRotation: state.imageRotation,
   });
   state.lanes = lanes;
+  state.activeLane = null;
   if (!pairs.length) {
     persistAndRender();
     setStatus('Boundary lines could not be paired. Keep the origin and solvent-front lines vertically separated.', 'error');
     return;
+  }
+  if (state.lanes.length) {
+    const suggestedWidth = Math.min(...state.lanes.map(lane => lane.w));
+    if (!applyCommonLaneWidth(state, state.laneWidth ?? suggestedWidth)) {
+      state.lanes = [];
+      state.activeLane = null;
+      persistAndRender();
+      setStatus('Spotting marks are too close for separate lanes. Move them apart and try again.', 'error');
+      return;
+    }
   }
   state.activeLane = state.lanes[0] || null; persistAndRender();
   if (state.activeLane) { requestDensitograms(true, { coalesce: false }); setStatus(`${state.lanes.length} lane${state.lanes.length === 1 ? '' : 's'} calculated.`, 'success'); }
@@ -125,7 +138,9 @@ export async function undo() {
   const snapshot = state.undoStack.pop();
   if (!snapshot) { setStatus('Nothing to undo.', 'info'); return; }
   try {
-    restoreProject(JSON.parse(snapshot)); await hydrateCurrentImage(); persistProject(); setStatus('Last change undone.', 'success');
+    restoreProject(JSON.parse(snapshot)); await hydrateCurrentImage(); persistProject();
+    if (state.lanes.length) requestDensitograms(false, { coalesce: false });
+    setStatus('Last change undone.', 'success');
   } catch { setStatus('The undo snapshot could not be restored.', 'error'); }
 }
 
@@ -133,6 +148,6 @@ export function startNewProject() {
   clearPendingRequests(); clearStoredProject(); window.location.reload();
 }
 
-function persistAndRender() { renderProfiles(); renderTable(); render(); persistProject(); }
+function persistAndRender() { syncControls(); renderProfiles(); renderTable(); render(); persistProject(); }
 function readFileAsDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('The image could not be read.')); reader.readAsDataURL(file); }); }
 function loadImage(source) { return new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => reject(new Error('The image could not be decoded.')); image.src = source; }); }

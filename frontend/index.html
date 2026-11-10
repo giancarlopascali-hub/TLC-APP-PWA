@@ -62,7 +62,7 @@
           <div class="side-group"><span class="side-label">Polarity</span><button class="mode-btn active" data-mode="default" type="button">D</button><button class="mode-btn" data-mode="dark" type="button">S</button><button class="mode-btn" data-mode="bright" type="button">B</button></div>
           <label class="side-group"><span class="side-label">Sensitivity</span><input type="number" id="peak-sens" value="40" min="1" max="80" inputmode="numeric"></label>
           <label class="side-group"><span class="side-label">Distance</span><input type="number" id="peak-res" value="8" min="1" max="50" inputmode="numeric"></label>
-          <label class="side-group"><span class="side-label">Width</span><input type="number" id="peak-width" value="50" min="0" max="100" inputmode="numeric"></label>
+          <label class="side-group"><span class="side-label">Peak width %</span><input type="number" id="peak-width" value="50" min="0" max="100" inputmode="numeric"></label>
           <button id="btn-restore-defaults" class="side-btn" type="button" title="Restore defaults">↺</button>
         </aside>
       </div>
@@ -92,6 +92,12 @@
 
   <section id="settings-sheet" class="settings-sheet hidden" aria-label="Image and analysis settings" aria-modal="true" role="dialog">
     <div class="settings-card"><header><h2>Analysis settings</h2><button id="btn-close-settings" type="button" aria-label="Close settings">×</button></header>
+      <div class="settings-section" id="lane-width-section">
+        <h3>Lane geometry</h3>
+        <label for="lane-width">Common lane width <span id="lane-width-val">—</span></label>
+        <input id="lane-width" type="range" min="2" max="35" step="0.1" value="35" disabled aria-describedby="lane-width-help">
+        <p id="lane-width-help">Maximum width: <span id="lane-width-max">—</span> before lanes overlap or reach an image edge. Changing width recalculates every lane profile and its peaks.</p>
+      </div>
       <div class="settings-section">
         <h3>RGB projection</h3>
         <p>Choose a display/analysis weighting from the photo's RGB channels. Wavelength labels and the window are approximations, not physical spectrometer settings.</p>
