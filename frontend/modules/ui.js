@@ -1,5 +1,7 @@
 import { $, state } from './state.js';
 import { syncLaneWidthControl } from './lane_width.js';
+import { normalizeShoulderSensitivity, shoulderSensitivityLabel } from './shoulder.js';
+import { saveUndoSnapshot } from './storage.js';
 
 export function setStatus(message, kind = 'info') {
   state.status = { message, kind };
@@ -55,18 +57,26 @@ export function setupAnalysisControls(onChanged) {
     onChanged(true);
   }));
   $('btn-restore-defaults')?.addEventListener('click', () => {
-    state.peakProminence = 40; state.peakDistance = 8; state.peakThreshold = 50; syncControls(); onChanged(true);
+    saveUndoSnapshot();
+    state.peakProminence = 40; state.peakDistance = 8; state.peakThreshold = 50;
+    state.shoulderSensitivity = 0; state.fitOverrides = {};
+    syncControls(); onChanged(true);
   });
   document.querySelectorAll('.mode-item').forEach(button => button.addEventListener('click', () => {
     document.querySelectorAll('.mode-item').forEach(item => item.classList.toggle('active', item === button)); state.integrationMethod = button.dataset.imode; onChanged(false, 'table');
   }));
 }
 
-export function setupSettings(onChanged, onLaneWidthInput, onLaneWidthCommit) {
+export function setupSettings(onChanged, onLaneWidthInput, onLaneWidthCommit, onShoulderCommit) {
   $('btn-settings')?.addEventListener('click', () => $('settings-sheet')?.classList.remove('hidden'));
   $('btn-close-settings')?.addEventListener('click', () => $('settings-sheet')?.classList.add('hidden'));
   $('lane-width')?.addEventListener('input', event => onLaneWidthInput?.(event.target.value));
   $('lane-width')?.addEventListener('change', event => onLaneWidthCommit?.(event.target.value));
+  $('shoulder-sensitivity')?.addEventListener('input', event => {
+    const label = $('shoulder-sensitivity-val');
+    if (label) label.textContent = shoulderSensitivityLabel(event.target.value);
+  });
+  $('shoulder-sensitivity')?.addEventListener('change', event => onShoulderCommit?.(normalizeShoulderSensitivity(event.target.value)));
   $('btn-invert-colors')?.addEventListener('click', () => { state.invertColors = !state.invertColors; syncControls(); onChanged(false, 'render'); onChanged(true); });
   document.querySelectorAll('.wl-preset-btn').forEach(button => button.addEventListener('click', () => {
     const value = button.dataset.wl; state.wavelengthPreset = value; state.targetWavelength = value === 'full' ? null : Number(value); syncControls(); onChanged(false, 'render'); onChanged(true);
@@ -90,6 +100,10 @@ export function syncControls() {
   document.querySelectorAll('.mode-item').forEach(button => button.classList.toggle('active', button.dataset.imode === state.integrationMethod));
   document.querySelectorAll('.wl-preset-btn').forEach(button => button.classList.toggle('active', button.dataset.wl === state.wavelengthPreset));
   $('btn-invert-colors')?.classList.toggle('active', state.invertColors);
+  const shoulder = $('shoulder-sensitivity');
+  if (shoulder) shoulder.value = String(normalizeShoulderSensitivity(state.shoulderSensitivity));
+  const shoulderValue = $('shoulder-sensitivity-val');
+  if (shoulderValue) shoulderValue.textContent = shoulderSensitivityLabel(state.shoulderSensitivity);
   syncLaneWidthControl(state);
 }
 

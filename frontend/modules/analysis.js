@@ -108,7 +108,12 @@ export function normalizePeakSchema(peak, length, displayProfile, analysisProfil
   next.lb = next.area_lb;
   next.rb = next.area_rb;
   next.rf = Number.isFinite(Number(next.rf)) ? Number(next.rf) : calculateRf(idx, length);
-  next.area = integratePeakArea(analysisProfile, left, right);
+  // A resolved shoulder partitions one measured union of Width%-controlled
+  // windows. Its component area cannot be reconstructed by integrating the
+  // component's display bounds against the total measured trace.
+  const fittedArea = next.area_method === 'deconvolved' && typeof next.fit_group_id === 'string'
+    && Number.isFinite(Number(next.area)) && Number(next.area) >= 0;
+  next.area = fittedArea ? Number(next.area) : integratePeakArea(analysisProfile, left, right);
   delete next.area_recalculation_required;
   next.manual = Boolean(next.manual);
   next.type = ['N', 'S', 'A'].includes(next.type) ? next.type : 'N';
@@ -121,6 +126,11 @@ export function remeasurePeak(peak, lane, thresholdPercent, { resetBounds = fals
   const length = analysis.length;
   if (length < 2) return normalizePeakSchema(peak, length, display, analysis, thresholdPercent);
   const next = { ...(peak || {}) };
+  delete next.area_method;
+  delete next.fit_group_id;
+  delete next.fit_component_index;
+  delete next.fit_center_idx;
+  delete next.fit_area;
   next.idx = clampIndex(next.idx, length);
   if (resetBounds || next.area_lb == null || next.area_rb == null) {
     Object.assign(next, findPeakBounds(analysis, next.idx, thresholdPercent));
@@ -146,6 +156,7 @@ export function migrateLaneSchema(lane, thresholdPercent = 50) {
   const length = next.profile_analysis.length;
   next.peaks = (Array.isArray(next.peaks) ? next.peaks : [])
     .map(peak => normalizePeakSchema(peak, length, next.profile_display, next.profile_analysis, thresholdPercent));
+  next.fit_groups = Array.isArray(next.fit_groups) ? next.fit_groups : [];
   return next;
 }
 

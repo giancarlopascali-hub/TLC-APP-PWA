@@ -210,6 +210,8 @@ export function buildProfilePayload(image, lanes, settings, detectPeaks) {
     peak_prominence: Number(settings.peakProminence),
     peak_distance: Number(settings.peakDistance),
     peak_threshold: Number(settings.peakThreshold),
+    shoulder_sensitivity: Number(settings.shoulderSensitivity) || 0,
+    fit_overrides: { ...(settings.fitOverrides || {}) },
     smooth_sigma: SMOOTH_SIGMA,
     polarity_mode: settings.polarityMode,
     target_wavelength: settings.targetWavelength,

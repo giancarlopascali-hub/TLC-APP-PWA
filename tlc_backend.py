@@ -37,6 +37,8 @@ from PIL import Image, UnidentifiedImageError
 from scipy.ndimage import gaussian_filter1d, median_filter
 from scipy.signal import find_peaks
 
+from tlc_shoulder import fit_shoulder_group
+
 
 # ---------------------------------------------------------------------------
 # Public limits
@@ -530,6 +532,8 @@ class _ProfileSettings:
     peak_distance: int
     smooth_sigma: float
     peak_threshold: float
+    shoulder_sensitivity: float
+    fit_overrides: dict[str, str]
     polarity_mode: str
     target_wavelength: int | None
     wavelength_bandwidth: int
@@ -644,6 +648,19 @@ def _validate_profile_settings(data: Any) -> _ProfileSettings:
         minimum=0.0,
         maximum=100.0,
     )
+    shoulder_sensitivity = _finite_number(
+        payload.get("shoulder_sensitivity", 0),
+        "shoulder_sensitivity",
+        minimum=0.0,
+        maximum=100.0,
+    )
+    fit_overrides = payload.get("fit_overrides", {})
+    if not isinstance(fit_overrides, Mapping) or len(fit_overrides) > MAX_LANES * 32:
+        raise ParameterValidationError("fit_overrides must be a small object.")
+    if any(not isinstance(key, str) or len(key) > MAX_LANE_ID_LENGTH + 16
+           or not isinstance(value, str) or value not in {"split", "keep"}
+           for key, value in fit_overrides.items()):
+        raise ParameterValidationError("fit_overrides must select split or keep.")
     polarity_mode = payload.get("polarity_mode", "default")
     if polarity_mode not in {"default", "dark", "bright"}:
         raise ParameterValidationError("polarity_mode must be default, dark, or bright.")
@@ -657,6 +674,8 @@ def _validate_profile_settings(data: Any) -> _ProfileSettings:
         peak_distance=peak_distance,
         smooth_sigma=smooth_sigma,
         peak_threshold=threshold_percent / 100.0,
+        shoulder_sensitivity=shoulder_sensitivity,
+        fit_overrides=dict(fit_overrides),
         polarity_mode=polarity_mode,
         target_wavelength=_normalise_wavelength(payload.get("target_wavelength")),
         wavelength_bandwidth=_normalise_wavelength_bandwidth(payload.get("wavelength_bandwidth", 0)),
@@ -723,14 +742,15 @@ def _lane_profile(
 
 
 def _detect_lane_peaks(
+    lane_id: str,
     display: np.ndarray,
     analysis: np.ndarray,
     settings: _ProfileSettings,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not settings.peak_detection or analysis.size <= 4:
-        return []
+        return [], []
     if float(np.max(analysis) - np.min(analysis)) < 1e-6:
-        return []
+        return [], []
 
     peak_indices, properties = find_peaks(
         analysis,
@@ -738,6 +758,7 @@ def _detect_lane_peaks(
         distance=max(1, settings.peak_distance),
     )
     peaks: list[dict[str, Any]] = []
+    peak_bases: list[tuple[int, int]] = []
     for position, apex in enumerate(peak_indices):
         rf = calculate_rf(int(apex), int(analysis.size))
         # The source-of-truth policy rejects peaks in the padded lane margins.
@@ -755,6 +776,7 @@ def _detect_lane_peaks(
             settings.peak_threshold,
         )
         area = integrate_peak_area(analysis, peak_left, peak_right)
+        peak_bases.append((area_left, area_right))
         peaks.append(
             {
                 "idx": int(apex),
@@ -771,7 +793,41 @@ def _detect_lane_peaks(
                 "type": "N",
             }
         )
-    return peaks
+    fit_groups: list[dict[str, Any]] = []
+    if settings.shoulder_sensitivity > 0 and peaks:
+        original_peaks = peaks
+        peaks = []
+        used_bounds: list[tuple[int, int]] = []
+        for peak_index, ordinary in enumerate(original_peaks):
+            neighbor_intervals = [
+                (int(other["area_lb"]), int(other["area_rb"]))
+                for other_index, other in enumerate(original_peaks)
+                if other_index != peak_index
+            ]
+            group_id = f"{lane_id}:{ordinary['idx']}"
+            group, replacement = fit_shoulder_group(
+                analysis, display, calculate_rf, integrate_peak_area,
+                int(ordinary["idx"]), *peak_bases[peak_index],
+                settings.peak_threshold, settings.shoulder_sensitivity,
+                group_id, ordinary, neighbor_intervals,
+                settings.fit_overrides.get(group_id),
+            )
+            if group is not None:
+                fit_bounds = (group["bounds"]["lb"], group["bounds"]["rb"])
+                if any(fit_bounds[0] <= right and left <= fit_bounds[1]
+                       for left, right in used_bounds):
+                    group = None
+                    replacement = None
+                else:
+                    fit_groups.append(group)
+                    used_bounds.append(fit_bounds)
+            peaks.extend(replacement if replacement is not None else [ordinary])
+        peaks.sort(key=lambda peak: peak["idx"])
+        groups_by_id = {group["id"]: group for group in fit_groups}
+        for peak_index, peak in enumerate(peaks):
+            if peak.get("area_method") == "deconvolved":
+                groups_by_id[peak["fit_group_id"]]["components"][peak["fit_component_index"]]["peak_index"] = peak_index
+    return peaks, fit_groups
 
 
 # ---------------------------------------------------------------------------
@@ -876,12 +932,14 @@ def generate_profiles(data: Any) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for lane in settings.lanes:
         display, analysis = _lane_profile(image, lane, settings)
+        peaks, fit_groups = _detect_lane_peaks(lane["id"], display, analysis, settings)
         results.append(
             {
                 "id": lane["id"],
                 "profile_display": [float(value) for value in display],
                 "profile_analysis": [float(value) for value in analysis],
-                "peaks": _detect_lane_peaks(display, analysis, settings),
+                "peaks": peaks,
+                "fit_groups": fit_groups,
             }
         )
     return {"results": results, "_detectPeaks": settings.peak_detection}

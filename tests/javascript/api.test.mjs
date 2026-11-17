@@ -58,10 +58,13 @@ function profileResponse(request, id) {
 test('profile requests carry the RGB window to the analysis service', () => {
   const settings = {
     peakProminence: 40, peakDistance: 8, peakThreshold: 50,
+    shoulderSensitivity: 80, fitOverrides: { 'lane:3': 'keep' },
     polarityMode: 'default', targetWavelength: 450, wavelengthBandwidth: 25,
     invertColors: false,
   };
   assert.equal(buildProfilePayload('image', [], settings, true).wavelength_bandwidth, 25);
+  assert.equal(buildProfilePayload('image', [], settings, true).shoulder_sensitivity, 80);
+  assert.deepEqual(buildProfilePayload('image', [], settings, true).fit_overrides, { 'lane:3': 'keep' });
 });
 
 test('a stale Streamlit profile response cannot overwrite a newer profile request', () => {

@@ -1,4 +1,5 @@
 import { displayProfileFor } from './analysis.js';
+import { analysisReady, fitGroups, fitIntegrationSegments, isFittedPeak } from './shoulder.js';
 import { imageCanvasPosition } from './coords.js';
 import { applyImageFilters } from './image_filters.js';
 import { $, state } from './state.js';
@@ -84,7 +85,14 @@ function drawLanes(context, scale) {
     context.strokeStyle = active ? '#ffc107' : 'rgba(88,166,255,.45)'; context.lineWidth = active ? 4 / state.view.zoom : 2 / state.view.zoom;
     context.strokeRect(-lane.w * scale / 2, -lane.h * scale / 2, lane.w * scale, lane.h * scale);
     const n = displayProfileFor(lane).length;
-    if (n > 1) (lane.peaks || []).forEach(peak => {
+    if (n > 1 && analysisReady(state)) fitGroups(lane).filter(group => group.active).forEach(group =>
+      fitIntegrationSegments(group).forEach(segment => {
+        const top = (0.5 - segment.rb / (n - 1)) * lane.h * scale;
+        const bottom = (0.5 - segment.lb / (n - 1)) * lane.h * scale;
+        context.fillStyle = active ? 'rgba(188,140,255,.28)' : 'rgba(188,140,255,.14)';
+        context.fillRect(-lane.w * scale / 2, top, lane.w * scale, bottom - top);
+      }));
+    if (n > 1 && analysisReady(state)) (lane.peaks || []).filter(peak => !isFittedPeak(peak)).forEach(peak => {
       const lb = Number(peak.display_lb ?? peak.area_lb ?? peak.lb ?? 0);
       const rb = Number(peak.display_rb ?? peak.area_rb ?? peak.rb ?? 0);
       const top = (0.5 - rb / (n - 1)) * lane.h * scale;

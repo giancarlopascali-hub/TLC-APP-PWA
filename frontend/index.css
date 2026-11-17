@@ -23,3 +23,16 @@
 @media (min-width: 680px) {
   .settings-card { max-height: min(85dvh, calc(100dvh - 1.5rem)); }
 }
+.logo-box h1 small,.ws-logo small{font-size:.4em;letter-spacing:0;vertical-align:middle;color:#bc8cff;-webkit-text-fill-color:#bc8cff}
+#shoulder-section input[type=range]{width:100%;padding:0;accent-color:#bc8cff}
+.fit-review{padding:.7rem .8rem 1rem;background:var(--bg);border-top:1px solid var(--border)}
+.fit-review h3{margin:0 0 .5rem;font-size:.85rem;color:#d6bbff}
+.fit-card{padding:.7rem;margin:.5rem 0;border:1px solid #6d4b91;border-radius:9px;background:#171324}
+.fit-card-head{display:flex;justify-content:space-between;gap:.5rem;align-items:center;font-size:.77rem}
+.fit-status{color:#d5b5ff;font-size:.7rem;white-space:nowrap}
+.fit-metrics,.fit-message,.fit-provenance{margin:.45rem 0;color:var(--dim);font-size:.72rem;line-height:1.4}
+.fit-actions{display:flex;gap:.45rem;margin:.55rem 0}
+.fit-actions button{flex:1;min-height:39px;padding:.4rem;border:1px solid #6d4b91;border-radius:6px;background:#242036;color:#e4d4fb;font-size:.73rem;font-weight:700}
+.fit-actions button.selected{background:#6d4b91;color:white}
+.fit-area-label{display:block;color:#bc8cff;font-size:.62rem;line-height:1.2}
+button:disabled{opacity:.45;cursor:not-allowed}

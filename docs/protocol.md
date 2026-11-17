@@ -86,7 +86,8 @@ The currently defined error codes are `INVALID_REQUEST`,
       "id": "lane-1",
       "profile_display": [],
       "profile_analysis": [],
-      "peaks": []
+      "peaks": [],
+      "fit_groups": []
     }
   ],
   "_detectPeaks": true
@@ -95,3 +96,13 @@ The currently defined error codes are `INVALID_REQUEST`,
 
 The profile and peak fields are defined in
 [the numerical contract](numerical-contract.md).
+
+`generate_profiles` also accepts optional `shoulder_sensitivity` (0–100,
+default 0) and `fit_overrides` (`{ "lane-1:apexIndex": "split" | "keep" }`).
+Each fit group includes a stable ID, status, recommendation, active decision,
+quality diagnostics, `original_peak`, `split_peaks`, measured
+`integration_segments` and `measured_cluster_area`, and window-local
+`baseline_curve`, `single_curve`, `double_curve`, and component curves. All
+curves use the origin-to-front 0–100 analysis signal and align to the inclusive
+`bounds.lb..rb` fit window. The browser swaps `original_peak` and `split_peaks`
+locally when a user chooses Keep single or Split, preserving unrelated edits.

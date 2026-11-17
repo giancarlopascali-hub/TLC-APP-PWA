@@ -84,6 +84,32 @@ Values retain full practical precision in storage and are rounded only for the
 user interface or a report.  Units are arbitrary normalised intensity × sample
 index units until a validated calibration is applied.
 
+## Optional shoulder fitting
+
+`shoulder_sensitivity = 0` leaves ordinary detection and areas unchanged.
+At a positive sensitivity, a secondary curvature candidate is tested against
+the local noise and measured (pre-normalisation) contrast. The backend fits
+one asymmetric peak and two constrained asymmetric components to the same
+measured `profile_analysis` samples. It recommends a split only when the two
+component fit is stable and materially better; otherwise the candidate is
+reported as unresolved and the ordinary peak stays active.
+
+For a resolved split, Peak width % defines an interval around each fitted
+component. Overlapping intervals are merged; disjoint intervals keep the gap
+out. Each merged segment is integrated once with the ordinary endpoint-baseline
+formula above. `measured_cluster_area` is the sum of those measured segment
+areas. The two fitted component integrals over the same segments supply
+fractions that allocate that measured area: their reported `peak.area` values
+sum to `measured_cluster_area` after rounding. `fit_area` is the unallocated
+model integral. Relative percentages and area calibration use the allocated
+`peak.area` values, while the original measured profile remains unchanged.
+
+`fit_groups[].bounds` aligns the window-local fit curves; `integration_segments`
+defines the measured support, and `integration_bounds` is only its outer range.
+The browser lets users keep the original peak or apply the two `split_peaks`
+locally. A fitted peak is read-only until the user chooses Keep single. A
+fitted component outside the physical `0–1` Rf region is not accepted.
+
 ## Rf policy
 
 The current lane geometry intentionally includes a five-percent padding at

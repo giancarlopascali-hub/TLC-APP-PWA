@@ -26,6 +26,9 @@ export const state = {
   integrationMethod: 'relative',
   undoStack: [],
   ...DEFAULT_ANALYSIS,
+  fitOverrides: {},
+  isProfilePending: false,
+  isProfileStale: false,
   status: { message: STATUS_IDLE, kind: 'info' },
   transient: {
     dragStart: null,

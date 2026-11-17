@@ -133,7 +133,7 @@
         <li><strong>New</strong> discards the current analysis after confirmation and returns to image selection.</li>
         <li><strong>Reset</strong> restores the original uploaded image and clears crop, rotation, lines, marks and lanes.</li>
         <li><strong>Undo</strong> restores the most recent recorded edit. Up to 50 recent snapshots are held during the session.</li>
-        <li><strong>Settings</strong> contains the common lane width, RGB projection presets, a custom 380–750 nm target, a Window ±nm slider and number field, and Invert colours.</li>
+        <li><strong>Settings</strong> contains the common lane width, Shoulder sensitivity, RGB projection presets, a custom 380–750 nm target, a Window ±nm slider and number field, and Invert colours.</li>
       </ul>
       <div class="callout"><strong>Common lane width</strong> changes every lane to the same processed-image-pixel width. The maximum stops at the first overlap or image edge. Adjusting the slider recalculates all profiles and peaks. Any manual peak edits are replaced by that recalculation.</div>
       <div class="callout"><strong>RGB controls are image-processing weightings.</strong> Window 0 uses the selected target only; a wider window averages approximate RGB weights from target minus to target plus the entered nm value, clipped to 380–750. This is not a physical bandwidth measurement. Changing a filter reruns automatic detection and replaces manual peak edits.</div>
@@ -147,8 +147,13 @@
         <li><strong>Sensitivity:</strong> controls how readily weaker peaks are detected.</li>
         <li><strong>Distance:</strong> controls the minimum separation between detected peaks.</li>
         <li><strong>Peak width %:</strong> controls the threshold used for the automatic peak display band and the initial width of a newly added manual peak.</li>
-        <li><strong>↺:</strong> restores the three peak-detection settings to their defaults.</li>
+        <li><strong>↺:</strong> restores peak-detection settings and turns Shoulder sensitivity Off.</li>
       </ul>
+
+      <h3>Review overlapping shoulders</h3>
+      <p>Open <strong>Settings → Shoulder sensitivity</strong>. At <strong>Off (0)</strong>, detection and area measurement follow the ordinary peak method. A higher value checks the smoothed profile for a possible hidden shoulder and compares one fitted asymmetric peak with two. A weak, noisy or unstable candidate stays <strong>Unresolved</strong> and is kept as a single peak.</p>
+      <p>For a supported candidate, use <strong>Split</strong> or <strong>Keep single</strong> in the Profile tab. The blue line is always the measured profile. Teal shows the fitted total and purple dashed lines show its two components. A Split can be reversed without recalculating other peaks. Fitted components are read-only; choose Keep single to edit the ordinary peak.</p>
+      <div class="callout"><strong>Fitted area:</strong> Peak width % sets a threshold interval around each fitted component. The app integrates the measured normalized signal over their union, counting overlap once and excluding any gap. Fitted component shapes then allocate that measured cluster area between the two peaks. Table percentages and calibration use these allocated areas. The fitted curves do not replace the measured profile.</div>
 
       <h3>Edit menu</h3>
       <ul>
@@ -166,7 +171,7 @@
         <div class="legend-item"><span class="dot gold"></span><span><strong>Gold</strong> — automatically detected peak.</span></div>
         <div class="legend-item"><span class="dot red"></span><span><strong>Red with an asterisk</strong> — manually added or adjusted peak.</span></div>
       </div>
-      <div class="callout"><strong>How area is measured:</strong> peak area is the baseline-corrected trapezoidal area of the normalized analytical profile between the two vertical integration boundaries. The shaded band is a visual aid.</div>
+      <div class="callout"><strong>Ordinary area:</strong> peak area is the baseline-corrected trapezoidal area of the normalized analytical profile between the two vertical integration boundaries. The shaded band shows the measured interval.</div>
     </section>
 
     <section id="results">
@@ -191,7 +196,7 @@
       <ul>
         <li><strong>PDF lane</strong> prepares a report for the active lane.</li>
         <li><strong>PDF all</strong> prepares a multi-page report for every lane.</li>
-        <li>The report uses the currently selected Table mode. In the print window choose <strong>Print</strong> or <strong>Save as PDF</strong>. If pop-ups are blocked, the app downloads a printable HTML report instead.</li>
+        <li>The report uses the currently selected Table mode and labels fitted component areas and each Split/Keep decision. In the print window choose <strong>Print</strong> or <strong>Save as PDF</strong>. If pop-ups are blocked, the app downloads a printable HTML report instead.</li>
       </ul>
     </section>
 

@@ -5,6 +5,7 @@ import { exportReport } from './reports.js';
 import { render } from './render.js';
 import { clearStoredProject, loadStoredProject, persistProject, saveUndoSnapshot } from './storage.js';
 import { $, state } from './state.js';
+import { analysisReady, normalizeShoulderSensitivity } from './shoulder.js';
 import { stReady, stSetHeight } from './streamlit_bridge.js';
 import { setBusy, setStatus, setupAnalysisControls, setupProfileMenus, setupSettings, setupTabs, setupToolSelection, syncControls } from './ui.js';
 import { setupCanvasEvents } from './interactions.js';
@@ -14,8 +15,25 @@ export function init() {
   registerApiHandlers({
     profiles: receiveProfiles,
     crop: receiveCrop,
-    error: message => setStatus(message, 'error'),
-    activity: setBusy,
+    error: message => {
+      if (state.isProfilePending) { state.isProfilePending = false; state.isProfileStale = true; renderProfiles(); }
+      setStatus(message, 'error');
+    },
+    activity: (action, busy) => {
+      setBusy(action, busy);
+      if (action === 'generate_profiles') {
+        state.isProfilePending = busy;
+        if (busy) {
+          state.isProfileStale = true;
+          state.transient.draggingPeak = null; state.transient.draggingBound = null;
+          state.transient.panningChart = null; state.transient.zoomingChart = null;
+        }
+        renderProfiles();
+        for (const id of ['btn-export-lane', 'btn-full-report']) {
+          const button = $(id); if (button) button.disabled = !analysisReady(state);
+        }
+      }
+    },
   });
   setupTabs({ onProfile: renderProfiles, onTable: renderTable, onImage: render });
   setupToolSelection();
@@ -48,6 +66,13 @@ export function init() {
     laneWidthUndoSaved = false;
     if (laneWidthChanged && state.lanes.length) requestDensitograms(true, { coalesce: false });
     laneWidthChanged = false;
+  }, requested => {
+    const next = normalizeShoulderSensitivity(requested);
+    if (next === state.shoulderSensitivity) return;
+    saveUndoSnapshot();
+    state.shoulderSensitivity = next;
+    state.fitOverrides = {};
+    syncControls(); persistProject(); requestDensitograms(true, { coalesce: false });
   });
   setupProfileMenus({
     onClear: clearPeaks,
@@ -102,11 +127,13 @@ async function restoreInFlightProject() {
     if (restored.reason === 'corrupt') setStatus('A temporary analysis workspace was corrupt and could not be restored.', 'error');
     return;
   }
+  state.isProfilePending = true; state.isProfileStale = true;
   syncControls(); await hydrateCurrentImage(); setStatus('Restoring analysis…', 'info');
 }
 
 async function exportWithFeedback(scope) {
   try {
+    if (!analysisReady(state)) throw new Error('Wait for the current analysis to finish before exporting.');
     const result = await exportReport(scope);
     setStatus(result?.destination === 'download'
       ? 'Printable report downloaded. Open it and use Print or Save as PDF.'

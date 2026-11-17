@@ -8,8 +8,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PIL import Image
+from scipy.signal import find_peaks
 
 import tlc_backend
+from tlc_shoulder import fit_shoulder_group
 
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "numerical_cases.json"
@@ -246,3 +248,115 @@ def test_profile_cache_never_exceeds_configured_budget() -> None:
     stats = tlc_backend.image_cache_stats()
     assert stats["items"] >= 1
     assert stats["bytes"] <= stats["max_bytes"]
+
+
+def shoulder_plate(secondary_height: float = 35) -> tuple[np.ndarray, dict]:
+    x = np.arange(240, dtype=float)
+    signal = 80 * np.exp(-0.5 * ((x - 100) / 12) ** 2)
+    signal += secondary_height * np.exp(-0.5 * ((x - 132) / 12) ** 2)
+    gray = np.clip(180 - signal[::-1], 0, 255).astype(np.uint8)
+    image = np.repeat(np.repeat(gray[:, None, None], 24, axis=1), 3, axis=2)
+    return signal, {
+        "image": image_data_url(image),
+        "lanes": [{"id": "lane-a", "cx": 12, "cy": 120, "w": 20, "h": 240, "angle": 0}],
+        "peak_detection": True,
+        "peak_prominence": 40,
+        "peak_distance": 8,
+        "peak_threshold": 50,
+        "smooth_sigma": 1.5,
+        "polarity_mode": "dark",
+    }
+
+
+def test_shoulder_split_conserves_measured_width_union_and_zero_is_legacy() -> None:
+    _signal, payload = shoulder_plate()
+    ordinary = tlc_backend.generate_profiles(payload)
+    assert ordinary == tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 0})
+    assert len(ordinary["results"][0]["peaks"]) == 1
+    assert ordinary["results"][0]["fit_groups"] == []
+
+    lane = tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 80})["results"][0]
+    assert [peak["idx"] for peak in lane["peaks"]] == pytest.approx([100, 132], abs=3)
+    group = lane["fit_groups"][0]
+    assert (group["status"], group["decision"], group["active"]) == ("resolved", "split", True)
+    assert group["area_basis"] == "component_threshold_union"
+    assert group["split_peaks"] == lane["peaks"]
+    assert group["id"] == "lane-a:100"
+    assert len(group["integration_segments"]) == 2
+    assert sum(peak["area"] for peak in lane["peaks"]) == pytest.approx(group["measured_cluster_area"], abs=1e-4)
+    assert sum(segment["area"] for segment in group["integration_segments"]) == pytest.approx(group["measured_cluster_area"], abs=1e-4)
+    for segment in group["integration_segments"]:
+        assert segment["area"] == pytest.approx(tlc_backend.integrate_peak_area(
+            lane["profile_analysis"], segment["lb"], segment["rb"],
+        ), abs=1e-4)
+    fit_length = group["bounds"]["rb"] - group["bounds"]["lb"] + 1
+    assert all(len(curve) == fit_length for curve in (
+        group["baseline_curve"], group["single_curve"], group["double_curve"],
+        *(component["curve"] for component in group["components"]),
+    ))
+
+    high_width = tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 80, "peak_threshold": 95})["results"][0]
+    high_group = high_width["fit_groups"][0]
+    assert high_group["status"] == "resolved"
+    assert len(high_group["integration_segments"]) == 2
+    outer = high_group["integration_bounds"]
+    assert high_group["measured_cluster_area"] < 0.2 * tlc_backend.integrate_peak_area(
+        high_width["profile_analysis"], outer["lb"], outer["rb"],
+    )
+
+
+def test_shoulder_keep_override_retains_single_and_offers_local_split() -> None:
+    _signal, payload = shoulder_plate()
+    split = tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 80})["results"][0]
+    group_id = split["fit_groups"][0]["id"]
+    kept = tlc_backend.generate_profiles({
+        **payload, "shoulder_sensitivity": 80, "fit_overrides": {group_id: "keep"},
+    })["results"][0]
+    group = kept["fit_groups"][0]
+    assert group["decision"] == "keep" and group["active"] is False
+    assert kept["peaks"] == [group["original_peak"]]
+    assert group["split_peaks"] == split["peaks"]
+
+
+def test_weak_shoulder_skewed_tail_and_blank_plate_do_not_split() -> None:
+    x = np.arange(240, dtype=float)
+    rng = np.random.default_rng(3)
+    cases = [
+        80 * np.exp(-0.5 * ((x - 100) / 12) ** 2)
+        + 8 * np.exp(-0.5 * ((x - 132) / 12) ** 2),
+        80 * np.exp(-0.5 * ((x - 100) / np.where(x < 100, 10, 22)) ** 2)
+        + np.where(x > 100, 5 * np.exp(-(x - 100) / 35), 0)
+        + rng.normal(0, 0.3, len(x)),
+        np.minimum(80 * np.exp(-0.5 * ((x - 100) / 12) ** 2)
+                   + 35 * np.exp(-0.5 * ((x - 132) / 12) ** 2), 64),
+    ]
+    for raw in cases:
+        normalized = (raw - raw.min()) / (raw.max() - raw.min()) * 100
+        indices, properties = find_peaks(normalized, prominence=41, distance=8)
+        assert len(indices) == 1
+        apex = int(indices[0])
+        left_base = int(properties["left_bases"][0]); right_base = int(properties["right_bases"][0])
+        left, right = tlc_backend._display_bounds(normalized, apex, left_base, right_base, 0.5)
+        original = {"idx": apex, "rf": tlc_backend.calculate_rf(apex, len(raw)),
+                    "height_display": float(raw[apex]), "area": tlc_backend.integrate_peak_area(normalized, left, right),
+                    "area_lb": left, "area_rb": right}
+        group, peaks = fit_shoulder_group(
+            normalized, raw, tlc_backend.calculate_rf, tlc_backend.integrate_peak_area,
+            apex, left_base, right_base, 0.5, 80, f"lane-a:{apex}", original, [], None,
+        )
+        assert peaks is None
+        assert group is None or group["status"] == "unresolved"
+
+    blank = np.clip(180 + rng.integers(-2, 3, size=(240, 24, 1)), 0, 255).astype(np.uint8)
+    blank = np.repeat(blank, 3, axis=2)
+    payload = shoulder_plate()[1]
+    payload["image"] = image_data_url(blank)
+    lane = tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 100})["results"][0]
+    assert not lane["fit_groups"]
+
+
+def test_shoulder_request_rejects_invalid_overrides() -> None:
+    with pytest.raises(tlc_backend.ParameterValidationError):
+        tlc_backend.generate_profiles({
+            "image": plate_with_dark_band(), "lanes": [], "fit_overrides": {"lane-a:100": []},
+        })

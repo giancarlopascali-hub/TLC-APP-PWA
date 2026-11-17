@@ -8,6 +8,7 @@ import { clearStoredProject, persistProject, restoreProject, saveUndoSnapshot } 
 import { $, replaceActiveReferences, state } from './state.js';
 import { render } from './render.js';
 import { renderProfiles, renderTable } from './profiles.js';
+import { tagKeptFitPeaks } from './shoulder.js';
 import { setStatus, syncControls } from './ui.js';
 
 export async function handleFile(file) {
@@ -35,6 +36,7 @@ export function setImage(dataUrl, { original = state.originalB64, clearAnnotatio
   state.imgB64 = dataUrl; state.originalB64 = original || dataUrl;
   if (clearAnnotations) {
     state.lines = []; state.spottingMarks = []; state.lanes = []; state.activeLane = null; state.activeLine = null; state.activeMark = null;
+    state.fitOverrides = {};
     state.laneWidth = null;
     state.imageRotation = 0; state.view = { zoom: 1, dx: 0, dy: 0 }; state.chartView = { zoom: 1, offset: 0 };
   }
@@ -66,11 +68,19 @@ export function receiveProfiles(data) {
     const lane = state.lanes.find(item => String(item.id) === String(result.id));
     if (!lane) return;
     const previous = lane.peaks || [];
+    const previousGroups = lane.fit_groups || [];
+    const priorAnalysis = lane.profile_analysis || [];
     Object.assign(lane, migrateLaneSchema(result, state.peakThreshold));
     if (!detect && previous.length) {
-      lane.peaks = previous.map(peak => remeasurePeak(peak, lane, state.peakThreshold));
+      const sameSignal = priorAnalysis.length === lane.profile_analysis.length
+        && priorAnalysis.every((value, index) => value === lane.profile_analysis[index]);
+      if (sameSignal) { lane.peaks = previous; lane.fit_groups = previousGroups; }
+      else { lane.peaks = previous.map(peak => remeasurePeak(peak, lane, state.peakThreshold)); lane.fit_groups = []; }
     }
+    if (detect) tagKeptFitPeaks(lane);
   });
+  state.isProfilePending = false; state.isProfileStale = false;
+  for (const id of ['btn-export-lane', 'btn-full-report']) { const button = $(id); if (button) button.disabled = false; }
   replaceActiveReferences(); persistAndRender(); setStatus('Profiles updated.', 'success');
 }
 
@@ -106,6 +116,7 @@ export function calculateLanes() {
     imageRotation: state.imageRotation,
   });
   state.lanes = lanes;
+  state.fitOverrides = {};
   state.activeLane = null;
   if (!pairs.length) {
     persistAndRender();

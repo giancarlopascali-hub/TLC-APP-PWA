@@ -28,6 +28,8 @@ function projectPayload() {
       peak_prominence: state.peakProminence,
       peak_distance: state.peakDistance,
       peak_threshold: state.peakThreshold,
+      shoulder_sensitivity: state.shoulderSensitivity,
+      fit_overrides: state.fitOverrides,
       lane_width: state.laneWidth,
       target_wavelength: state.targetWavelength,
       wavelength_preset: state.wavelengthPreset,
@@ -80,6 +82,12 @@ export function migrateProject(rawProject) {
       peak_prominence: Math.max(1, Math.min(100, Number(analysis.peak_prominence) || 40)),
       peak_distance: Math.max(1, Math.min(50, Math.round(Number(analysis.peak_distance) || 8))),
       peak_threshold: Math.max(0, Math.min(100, Number(analysis.peak_threshold) || 50)),
+      shoulder_sensitivity: Math.max(0, Math.min(100, Number(analysis.shoulder_sensitivity) || 0)),
+      fit_overrides: analysis.fit_overrides && typeof analysis.fit_overrides === 'object'
+        && !Array.isArray(analysis.fit_overrides)
+        ? Object.fromEntries(Object.entries(analysis.fit_overrides).filter(([key, value]) =>
+          typeof key === 'string' && (value === 'split' || value === 'keep')))
+        : {},
       lane_width: analysis.lane_width != null && Number.isFinite(Number(analysis.lane_width))
         && Number(analysis.lane_width) >= 2 ? Number(analysis.lane_width) : null,
       target_wavelength: targetWavelength,
@@ -128,6 +136,8 @@ export function restoreProject(project) {
   state.peakProminence = migrated.analysis.peak_prominence;
   state.peakDistance = migrated.analysis.peak_distance;
   state.peakThreshold = migrated.analysis.peak_threshold;
+  state.shoulderSensitivity = migrated.analysis.shoulder_sensitivity;
+  state.fitOverrides = migrated.analysis.fit_overrides;
   state.targetWavelength = migrated.analysis.target_wavelength;
   state.wavelengthPreset = migrated.analysis.wavelength_preset;
   state.wavelengthBandwidth = migrated.analysis.wavelength_bandwidth;
