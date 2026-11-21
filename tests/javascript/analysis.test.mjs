@@ -72,8 +72,8 @@ test('Width percentage changes the one authoritative integration interval', () =
 });
 
 test('calibration failures are explicit and relative totals cannot become NaN', () => {
-  assert.match(buildAreaCalibration([{ peaks: [{ type: 'S', area: 0, calibrationValue: 3 }] }]).error, /non-zero/i);
-  assert.match(buildAreaCalibration([{ peaks: [{ type: 'S', area: 2, calibrationValue: 3 }, { type: 'S', area: 2, calibrationValue: 4 }] }]).error, /distinct/i);
+  assert.match(buildAreaCalibration([{ peaks: [{ type: 'S', area: 0, calibrationValue: 3 }] }]).error, /positive measured area/i);
+  assert.match(buildAreaCalibration([{ peaks: [{ type: 'S', area: 2, calibrationValue: 3 }, { type: 'S', area: 2, calibrationValue: 4 }] }]).error, /mean standard areas must increase/i);
   assert.match(buildMwCalibration([{ peaks: [{ type: 'S', rf: .5, mwValue: 20 }, { type: 'S', rf: .5, mwValue: 10 }] }]).error, /distinct/i);
   const relative = relativeQuantitation([{ area: 0 }, { area: 0 }]);
   assert.deepEqual(relative.map(item => item.relativePercent), [0, 0]);

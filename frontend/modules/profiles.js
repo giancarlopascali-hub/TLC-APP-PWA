@@ -1,5 +1,6 @@
 import { analysisProfileFor, calculateRf, displayProfileFor, remeasurePeak } from './analysis.js';
-import { buildAreaCalibration, buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
+import { areaCalibrationQualifier, areaCalibrationSummary, buildAreaCalibration,
+  buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
 import { render } from './render.js';
 import { saveUndoSnapshot, persistProject } from './storage.js';
 import { $, state } from './state.js';
@@ -337,7 +338,7 @@ export function renderTable() {
   const headerRow = document.createElement('tr'); headers.forEach(title => headerRow.append(makeElement('th', { text: title }))); head.append(headerRow);
   if (!analysisReady(state)) { appendMessage(body, 'Analysis is updating. Peak values will appear when it finishes.', headers.length); return; }
   const areaCalibration = buildAreaCalibration(state.lanes); const mwCalibration = buildMwCalibration(state.lanes); const relative = relativeQuantitation(lane.peaks);
-  if (state.integrationMethod === 'calibration' && areaCalibration.error) appendMessage(body, areaCalibration.error, headers.length);
+  if (state.integrationMethod === 'calibration') appendMessage(body, areaCalibrationSummary(areaCalibration), headers.length);
   if (state.integrationMethod === 'mw_calibration' && mwCalibration.error) appendMessage(body, mwCalibration.error, headers.length);
   orderPeakRows(relative).forEach(({ peak, sourceIndex }, displayIndex) => appendPeakRow(body, peak, sourceIndex, displayIndex, areaCalibration, mwCalibration));
 }
@@ -361,7 +362,19 @@ function appendPeakRow(body, peak, sourceIndex, displayIndex, areaCalibration, m
   } else if (state.integrationMethod === 'calibration') {
     addCell(row, Number(peak.area || 0).toFixed(1)); addCell(row, typeSelect(peak, sourceIndex));
     if (peak.type === 'S') addCell(row, numberInput(peak.calibrationValue ?? '', .01, value => { lane.peaks[sourceIndex].calibrationValue = value; renderTable(); persistProject(); }));
-    else addCell(row, peak.type === 'A' && areaCalibration.evaluate ? areaCalibration.evaluate(peak.area).toFixed(2) : '—');
+    else {
+      const estimate = peak.type === 'A' && areaCalibration.evaluate ? areaCalibration.evaluate(peak.area) : null;
+      const qualifier = peak.type === 'A' ? areaCalibrationQualifier(areaCalibration, peak.area, estimate) : '';
+      const value = makeElement('span', { text: Number.isFinite(estimate) ? estimate.toFixed(2) : '—' });
+      if (qualifier) {
+        const note = makeElement('small', { className: 'calibration-qualifier', text: qualifier });
+        note.style.display = 'block';
+        note.style.color = 'var(--dim)';
+        note.style.fontFamily = 'inherit';
+        value.append(note);
+      }
+      addCell(row, value);
+    }
   } else {
     addCell(row, Number(peak.area || 0).toFixed(1)); addCell(row, typeSelect(peak, sourceIndex));
     if (peak.type === 'S') addCell(row, numberInput(peak.mwValue ?? '', .1, value => { lane.peaks[sourceIndex].mwValue = value; renderTable(); persistProject(); }));
@@ -379,7 +392,10 @@ function addCell(row, content) {
 
 function numberInput(value, step, onChange) {
   const input = document.createElement('input'); input.type = 'number'; input.step = step; input.value = value;
-  input.addEventListener('change', () => { const parsed = Number(input.value); if (Number.isFinite(parsed)) onChange(parsed); }); return input;
+  input.addEventListener('change', () => {
+    if (input.value.trim() === '') { onChange(null); return; }
+    const parsed = Number(input.value); if (Number.isFinite(parsed)) onChange(parsed);
+  }); return input;
 }
 
 function typeSelect(peak, index) {

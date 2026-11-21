@@ -1,4 +1,5 @@
-import { buildAreaCalibration, buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
+import { areaCalibrationQualifier, areaCalibrationSummary, buildAreaCalibration,
+  buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
 import { analysisProfileFor } from './analysis.js';
 import { state } from './state.js';
 import { analysisReady, fitCurveSeries, fitGroups, fitIntegrationSegments, isFittedPeak } from './shoulder.js';
@@ -119,13 +120,22 @@ export function reportRows(lane) {
     const area = Number(peak.area || 0).toFixed(1);
     if (method === 'relative') return `<tr><td>${name}</td><td>${rf}</td><td>${area}</td><td>${peak.relativePercent.toFixed(1)}%</td><td>${peak.absRatio}</td><td>${peak.correctedPercent.toFixed(1)}%</td></tr>`;
     if (method === 'calibration') {
-      const value = peak.type === 'S' ? peak.calibrationValue : peak.type === 'A' && areaCalibration.evaluate ? areaCalibration.evaluate(peak.area).toFixed(2) : '—';
-      return `<tr><td>${name}</td><td>${rf}</td><td>${area}</td><td>${escapeHtml(peak.type || 'N')}</td><td>${escapeHtml(value)}</td></tr>`;
+      const estimate = peak.type === 'A' && areaCalibration.evaluate ? areaCalibration.evaluate(peak.area) : null;
+      const entered = peak.calibrationValue;
+      const validStandard = entered !== undefined && entered !== null && String(entered).trim() !== ''
+        && Number.isFinite(Number(entered));
+      const value = peak.type === 'S' ? (validStandard ? entered : 'N/A')
+        : Number.isFinite(estimate) ? estimate.toFixed(2) : '—';
+      const qualifier = peak.type === 'A' ? areaCalibrationQualifier(areaCalibration, peak.area, estimate) : '';
+      return `<tr><td>${name}</td><td>${rf}</td><td>${area}</td><td>${escapeHtml(peak.type || 'N')}</td><td>${escapeHtml(value)}${qualifier ? `<small class="calibration-qualifier" style="display:block;color:#666">${escapeHtml(qualifier)}</small>` : ''}</td></tr>`;
     }
     const mw = peak.type === 'S' ? peak.mwValue : peak.type === 'A' && mwCalibration.evaluate ? mwCalibration.evaluate(peak.rf)?.toFixed(1) : '—';
     return `<tr><td>${name}</td><td>${rf}</td><td>${area}</td><td>${escapeHtml(peak.type || 'N')}</td><td>${escapeHtml(mw)}</td></tr>`;
   }).join('');
-  return `<table><thead><tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr></thead><tbody>${cells}</tbody></table>`;
+  const calibrationNote = method === 'calibration'
+    ? `<p class="calibration-note" style="padding:8px;border:1px solid #ddd;border-radius:5px;line-height:1.4">${escapeHtml(areaCalibrationSummary(areaCalibration))}</p>`
+    : '';
+  return `${calibrationNote}<table><thead><tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr></thead><tbody>${cells}</tbody></table>`;
 }
 
 export function reportFitSummary(lane) {
@@ -164,7 +174,7 @@ export async function exportReport(scope = 'lane') {
     if (!analysisReady(state)) throw new Error('Analysis changed while the report was preparing. Wait for the update and export again.');
   const sections = lanes.map(lane => {
     const title = escapeHtml(lane.name || `Lane ${lane.id}`);
-    return `<section class="report-page"><header><div><h1>AQ-TLC analytical report <small>v1.2</small></h1><p>Sample: <strong>${title}</strong></p></div><time>${escapeHtml(new Date().toLocaleString())}</time></header><div class="images"><img alt="Lane strip" src="${laneStrip(lane, image)}"><img alt="Densitogram" src="${laneChart(lane)}"></div><p class="method">Method: ${escapeHtml(state.integrationMethod)}. Ordinary areas integrate the normalized measured signal; fitted component areas partition the measured Width%-controlled interval union.</p>${reportFitSummary(lane)}${reportRows(lane)}</section>`;
+    return `<section class="report-page"><header><div><h1>AQ-TLC analytical report <small>v1.3</small></h1><p>Sample: <strong>${title}</strong></p></div><time>${escapeHtml(new Date().toLocaleString())}</time></header><div class="images"><img alt="Lane strip" src="${laneStrip(lane, image)}"><img alt="Densitogram" src="${laneChart(lane)}"></div><p class="method">Method: ${escapeHtml(state.integrationMethod)}. Ordinary areas integrate the normalized measured signal; fitted component areas partition the measured Width%-controlled interval union.</p>${reportFitSummary(lane)}${reportRows(lane)}</section>`;
   }).join('');
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>AQ-TLC analytical report</title><style>body{font:14px system-ui,sans-serif;color:#222;margin:0 auto;max-width:1100px;padding:30px}header{display:flex;justify-content:space-between;border-bottom:3px solid #0366d6;margin-bottom:22px}h1{color:#0366d6;margin:0}.images{border:1px solid #ddd;border-radius:8px;overflow:hidden}.images img{display:block;width:100%}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f6f8fa}.method{color:#555}.report-action{margin:0 0 20px;padding:9px 14px;font:600 14px system-ui,sans-serif;color:#fff;background:#0366d6;border:0;border-radius:6px}@media print{.report-page{page-break-after:always}.report-action{display:none}}</style></head><body><button class="report-action" onclick="window.print()">Print / Save as PDF</button>${sections}<script>window.addEventListener('load',function(){window.setTimeout(function(){window.print();},200);});<\/script></body></html>`;
     if (popup) {
