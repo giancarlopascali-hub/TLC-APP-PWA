@@ -24,7 +24,7 @@
 <body>
   <div id="status-area" role="status" aria-live="polite" data-kind="info">Ready</div>
   <main id="view-landing">
-    <div class="logo-box"><img src="icon.svg" alt="" class="app-icon"><h1>AQ-TLC Pro <small>v1.3</small></h1><p>Mobile analytical workstation</p></div>
+    <div class="logo-box"><img src="icon.svg" alt="" class="app-icon"><h1>AQ-TLC Pro <small>v1.4</small></h1><p>Mobile analytical workstation</p></div>
     <div class="landing-actions">
       <button class="btn-landing" id="btn-upload" type="button"><span aria-hidden="true">📂</span><span>Upload image</span></button>
       <button class="btn-landing accent" id="btn-camera" type="button"><span aria-hidden="true">📸</span><span>Take photo</span></button>
@@ -36,7 +36,7 @@
 
   <main id="view-workspace" class="hidden">
     <header class="ws-header">
-      <div class="ws-logo">AQ-TLC Pro <small>v1.3</small> <span id="lane-count-badge" class="badge">0 Lanes</span></div>
+      <div class="ws-logo">AQ-TLC Pro <small>v1.4</small> <span id="lane-count-badge" class="badge">0 Lanes</span></div>
       <a href="guide.html" target="_blank" rel="noopener" class="guide-link">Guide</a>
     </header>
     <div class="control-row" aria-label="Project controls">
@@ -103,6 +103,15 @@
         <label for="shoulder-sensitivity">Shoulder sensitivity <strong id="shoulder-sensitivity-val">Off</strong></label>
         <input id="shoulder-sensitivity" type="range" min="0" max="100" step="1" value="0" aria-describedby="shoulder-sensitivity-help">
         <p id="shoulder-sensitivity-help">Off keeps ordinary detection. Higher values check for overlapping peaks. Review each suggested Split or Keep single decision in the Profile tab.</p>
+        <div id="default-asymmetry-control" class="hidden">
+          <label class="settings-checkbox" for="default-asymmetry"><input id="default-asymmetry" type="checkbox" checked> Default asymmetry</label>
+          <p>Checked uses the established shoulder split. Uncheck to limit the left and right widths of each fitted component.</p>
+        </div>
+        <div id="maximum-asymmetry-control" class="hidden">
+          <label for="max-peak-asymmetry">Maximum peak asymmetry (R) <strong id="max-peak-asymmetry-val">1.0</strong></label>
+          <input id="max-peak-asymmetry" type="range" min="1" max="5" step="0.1" value="1" aria-describedby="max-peak-asymmetry-help">
+          <p id="max-peak-asymmetry-help">R is the larger fitted half-width divided by the smaller one. At 1.0, peaks are symmetric. A shape-limited fit is kept only if it fits within 5% of the best unrestricted fit.</p>
+        </div>
       </div>
       <div class="settings-section">
         <h3>RGB projection</h3>

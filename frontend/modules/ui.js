@@ -1,6 +1,7 @@
 import { $, state } from './state.js';
 import { syncLaneWidthControl } from './lane_width.js';
-import { normalizeShoulderSensitivity, shoulderSensitivityLabel } from './shoulder.js';
+import { normalizeMaxPeakAsymmetry, normalizeShoulderSensitivity, shoulderSensitivityLabel,
+  syncAsymmetryVisibility, syncShoulderControl } from './shoulder.js';
 import { saveUndoSnapshot } from './storage.js';
 
 export function setStatus(message, kind = 'info') {
@@ -59,7 +60,7 @@ export function setupAnalysisControls(onChanged) {
   $('btn-restore-defaults')?.addEventListener('click', () => {
     saveUndoSnapshot();
     state.peakProminence = 40; state.peakDistance = 8; state.peakThreshold = 50;
-    state.shoulderSensitivity = 0; state.fitOverrides = {};
+    state.shoulderSensitivity = 0; state.defaultAsymmetry = true; state.maxPeakAsymmetry = 1; state.fitOverrides = {};
     syncControls(); onChanged(true);
   });
   document.querySelectorAll('.mode-item').forEach(button => button.addEventListener('click', () => {
@@ -67,7 +68,7 @@ export function setupAnalysisControls(onChanged) {
   }));
 }
 
-export function setupSettings(onChanged, onLaneWidthInput, onLaneWidthCommit, onShoulderCommit) {
+export function setupSettings(onChanged, onLaneWidthInput, onLaneWidthCommit, onShoulderCommit, onAsymmetryCommit) {
   $('btn-settings')?.addEventListener('click', () => $('settings-sheet')?.classList.remove('hidden'));
   $('btn-close-settings')?.addEventListener('click', () => $('settings-sheet')?.classList.add('hidden'));
   $('lane-width')?.addEventListener('input', event => onLaneWidthInput?.(event.target.value));
@@ -75,8 +76,15 @@ export function setupSettings(onChanged, onLaneWidthInput, onLaneWidthCommit, on
   $('shoulder-sensitivity')?.addEventListener('input', event => {
     const label = $('shoulder-sensitivity-val');
     if (label) label.textContent = shoulderSensitivityLabel(event.target.value);
+    syncAsymmetryVisibility(event.target.value, $('default-asymmetry')?.checked !== false);
   });
   $('shoulder-sensitivity')?.addEventListener('change', event => onShoulderCommit?.(normalizeShoulderSensitivity(event.target.value)));
+  $('default-asymmetry')?.addEventListener('change', event => onAsymmetryCommit?.('default', event.target.checked));
+  $('max-peak-asymmetry')?.addEventListener('input', event => {
+    const label = $('max-peak-asymmetry-val');
+    if (label) label.textContent = normalizeMaxPeakAsymmetry(event.target.value).toFixed(1);
+  });
+  $('max-peak-asymmetry')?.addEventListener('change', event => onAsymmetryCommit?.('maximum', normalizeMaxPeakAsymmetry(event.target.value)));
   $('btn-invert-colors')?.addEventListener('click', () => { state.invertColors = !state.invertColors; syncControls(); onChanged(false, 'render'); onChanged(true); });
   document.querySelectorAll('.wl-preset-btn').forEach(button => button.addEventListener('click', () => {
     const value = button.dataset.wl; state.wavelengthPreset = value; state.targetWavelength = value === 'full' ? null : Number(value); syncControls(); onChanged(false, 'render'); onChanged(true);
@@ -100,10 +108,7 @@ export function syncControls() {
   document.querySelectorAll('.mode-item').forEach(button => button.classList.toggle('active', button.dataset.imode === state.integrationMethod));
   document.querySelectorAll('.wl-preset-btn').forEach(button => button.classList.toggle('active', button.dataset.wl === state.wavelengthPreset));
   $('btn-invert-colors')?.classList.toggle('active', state.invertColors);
-  const shoulder = $('shoulder-sensitivity');
-  if (shoulder) shoulder.value = String(normalizeShoulderSensitivity(state.shoulderSensitivity));
-  const shoulderValue = $('shoulder-sensitivity-val');
-  if (shoulderValue) shoulderValue.textContent = shoulderSensitivityLabel(state.shoulderSensitivity);
+  syncShoulderControl(state);
   syncLaneWidthControl(state);
 }
 

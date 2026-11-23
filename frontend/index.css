@@ -25,6 +25,9 @@
 }
 .logo-box h1 small,.ws-logo small{font-size:.4em;letter-spacing:0;vertical-align:middle;color:#bc8cff;-webkit-text-fill-color:#bc8cff}
 #shoulder-section input[type=range]{width:100%;padding:0;accent-color:#bc8cff}
+#shoulder-section .settings-checkbox{display:flex;align-items:center;gap:.55rem;margin-top:.7rem;font-weight:700}
+#shoulder-section .settings-checkbox input{width:1rem;height:1rem;margin:0;accent-color:#bc8cff}
+#maximum-asymmetry-control{margin-top:.7rem}
 .fit-review{padding:.7rem .8rem 1rem;background:var(--bg);border-top:1px solid var(--border)}
 .fit-review h3{margin:0 0 .5rem;font-size:.85rem;color:#d6bbff}
 .fit-card{padding:.7rem;margin:.5rem 0;border:1px solid #6d4b91;border-radius:9px;background:#171324}

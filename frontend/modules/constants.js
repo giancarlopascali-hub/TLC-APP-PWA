@@ -17,6 +17,8 @@ export const DEFAULT_ANALYSIS = Object.freeze({
   peakDistance: 8,
   peakThreshold: 50,
   shoulderSensitivity: 0,
+  defaultAsymmetry: true,
+  maxPeakAsymmetry: 1,
   targetWavelength: null,
   wavelengthPreset: 'full',
   wavelengthBandwidth: 0,

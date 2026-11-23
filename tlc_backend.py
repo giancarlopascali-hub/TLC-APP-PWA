@@ -533,6 +533,8 @@ class _ProfileSettings:
     smooth_sigma: float
     peak_threshold: float
     shoulder_sensitivity: float
+    default_asymmetry: bool
+    max_peak_asymmetry: float
     fit_overrides: dict[str, str]
     polarity_mode: str
     target_wavelength: int | None
@@ -654,6 +656,15 @@ def _validate_profile_settings(data: Any) -> _ProfileSettings:
         minimum=0.0,
         maximum=100.0,
     )
+    default_asymmetry = payload.get("default_asymmetry", True)
+    if not isinstance(default_asymmetry, bool):
+        raise ParameterValidationError("default_asymmetry must be true or false.")
+    max_peak_asymmetry = _finite_number(
+        payload.get("max_peak_asymmetry", 1.0),
+        "max_peak_asymmetry",
+        minimum=1.0,
+        maximum=5.0,
+    )
     fit_overrides = payload.get("fit_overrides", {})
     if not isinstance(fit_overrides, Mapping) or len(fit_overrides) > MAX_LANES * 32:
         raise ParameterValidationError("fit_overrides must be a small object.")
@@ -675,6 +686,8 @@ def _validate_profile_settings(data: Any) -> _ProfileSettings:
         smooth_sigma=smooth_sigma,
         peak_threshold=threshold_percent / 100.0,
         shoulder_sensitivity=shoulder_sensitivity,
+        default_asymmetry=default_asymmetry,
+        max_peak_asymmetry=max_peak_asymmetry,
         fit_overrides=dict(fit_overrides),
         polarity_mode=polarity_mode,
         target_wavelength=_normalise_wavelength(payload.get("target_wavelength")),
@@ -811,6 +824,8 @@ def _detect_lane_peaks(
                 settings.peak_threshold, settings.shoulder_sensitivity,
                 group_id, ordinary, neighbor_intervals,
                 settings.fit_overrides.get(group_id),
+                max_peak_asymmetry=settings.max_peak_asymmetry,
+                default_asymmetry=settings.default_asymmetry,
             )
             if group is not None:
                 fit_bounds = (group["bounds"]["lb"], group["bounds"]["rb"])

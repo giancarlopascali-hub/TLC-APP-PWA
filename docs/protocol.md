@@ -98,7 +98,10 @@ The profile and peak fields are defined in
 [the numerical contract](numerical-contract.md).
 
 `generate_profiles` also accepts optional `shoulder_sensitivity` (0–100,
-default 0) and `fit_overrides` (`{ "lane-1:apexIndex": "split" | "keep" }`).
+default 0), `default_asymmetry` (boolean, default true),
+`max_peak_asymmetry` (1–5, default 1), and `fit_overrides`
+(`{ "lane-1:apexIndex": "split" | "keep" }`). The maximum R is applied only
+when shoulder detection is on and Default asymmetry is unchecked.
 Each fit group includes a stable ID, status, recommendation, active decision,
 quality diagnostics, `original_peak`, `split_peaks`, measured
 `integration_segments` and `measured_cluster_area`, and window-local

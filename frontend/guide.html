@@ -147,11 +147,12 @@
         <li><strong>Sensitivity:</strong> controls how readily weaker peaks are detected.</li>
         <li><strong>Distance:</strong> controls the minimum separation between detected peaks.</li>
         <li><strong>Peak width %:</strong> controls the threshold used for the automatic peak display band and the initial width of a newly added manual peak.</li>
-        <li><strong>↺:</strong> restores peak-detection settings and turns Shoulder sensitivity Off.</li>
+        <li><strong>↺:</strong> restores peak-detection settings, turns Shoulder sensitivity Off, and resets Default asymmetry and R.</li>
       </ul>
 
       <h3>Review overlapping shoulders</h3>
       <p>Open <strong>Settings → Shoulder sensitivity</strong>. At <strong>Off (0)</strong>, detection and area measurement follow the ordinary peak method. A higher value checks the smoothed profile for a possible hidden shoulder and compares one fitted asymmetric peak with two. A weak, noisy or unstable candidate stays <strong>Unresolved</strong> and is kept as a single peak.</p>
+      <p>When Shoulder sensitivity is on, <strong>Default asymmetry</strong> is checked and uses the established split calculation. Uncheck it to set <strong>Maximum peak asymmetry (R)</strong> from 1 to 5. R is the larger fitted half-width divided by the smaller; 1 requires symmetric components. The app rejects a shape-limited split if its squared fitting error is over 5% worse than the best unrestricted fit.</p>
       <p>For a supported candidate, use <strong>Split</strong> or <strong>Keep single</strong> in the Profile tab. The blue line is always the measured profile. Teal shows the fitted total and purple dashed lines show its two components. A Split can be reversed without recalculating other peaks. Fitted components are read-only; choose Keep single to edit the ordinary peak.</p>
       <div class="callout"><strong>Fitted area:</strong> Peak width % sets a threshold interval around each fitted component. The app integrates the measured normalized signal over their union, counting overlap once and excluding any gap. Fitted component shapes then allocate that measured cluster area between the two peaks. Table percentages and calibration use these allocated areas. The fitted curves do not replace the measured profile.</div>
 

@@ -1,6 +1,7 @@
 /** Shared presentation helpers for optional shoulder fitting. */
 
 export const DEFAULT_SHOULDER_SENSITIVITY = 0;
+export const DEFAULT_MAX_PEAK_ASYMMETRY = 1;
 
 export function normalizeShoulderSensitivity(value) {
   const number = Number(value);
@@ -12,6 +13,17 @@ export function shoulderSensitivityLabel(value) {
   return sensitivity === 0 ? 'Off' : String(sensitivity);
 }
 
+export function normalizeMaxPeakAsymmetry(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(1, Math.min(5, Math.round(number * 10) / 10)) : DEFAULT_MAX_PEAK_ASYMMETRY;
+}
+
+export function syncAsymmetryVisibility(sensitivity, defaultAsymmetry) {
+  const enabled = normalizeShoulderSensitivity(sensitivity) > 0;
+  document.getElementById('default-asymmetry-control')?.classList.toggle('hidden', !enabled);
+  document.getElementById('maximum-asymmetry-control')?.classList.toggle('hidden', !enabled || defaultAsymmetry);
+}
+
 export function analysisReady(appState) {
   return !appState.isProfilePending && !appState.isProfileStale;
 }
@@ -21,6 +33,24 @@ export function syncShoulderControl(appState) {
   const label = document.getElementById('shoulder-sensitivity-val');
   if (slider) slider.value = normalizeShoulderSensitivity(appState.shoulderSensitivity);
   if (label) label.textContent = shoulderSensitivityLabel(appState.shoulderSensitivity);
+  const checkbox = document.getElementById('default-asymmetry');
+  if (checkbox) checkbox.checked = appState.defaultAsymmetry !== false;
+  const asymmetrySlider = document.getElementById('max-peak-asymmetry');
+  if (asymmetrySlider) asymmetrySlider.value = String(normalizeMaxPeakAsymmetry(appState.maxPeakAsymmetry));
+  const asymmetryLabel = document.getElementById('max-peak-asymmetry-val');
+  if (asymmetryLabel) asymmetryLabel.textContent = normalizeMaxPeakAsymmetry(appState.maxPeakAsymmetry).toFixed(1);
+  syncAsymmetryVisibility(appState.shoulderSensitivity, appState.defaultAsymmetry !== false);
+}
+
+export function fitAsymmetrySummary(group) {
+  const quality = group?.quality || {};
+  if (!Number.isFinite(Number(quality.max_peak_asymmetry))) return 'Default asymmetry';
+  const limit = Number(quality.max_peak_asymmetry).toFixed(1);
+  const fitted = Number.isFinite(Number(quality.max_fitted_asymmetry))
+    ? Number(quality.max_fitted_asymmetry).toFixed(2) : '—';
+  const loss = Number.isFinite(Number(quality.fit_loss_pct))
+    ? Number(quality.fit_loss_pct).toFixed(1) : '—';
+  return `R limit ${limit} · fitted max R ${fitted} · fit loss ${loss}%`;
 }
 
 export function isFittedPeak(peak) {

@@ -32,6 +32,10 @@ function resetState() {
   state.peakProminence = 40;
   state.peakDistance = 8;
   state.peakThreshold = 50;
+  state.shoulderSensitivity = 0;
+  state.defaultAsymmetry = true;
+  state.maxPeakAsymmetry = 1;
+  state.fitOverrides = {};
   state.targetWavelength = null;
   state.wavelengthPreset = 'full';
   state.wavelengthBandwidth = 0;
@@ -71,6 +75,19 @@ test('temporary snapshots retain the selected common lane width', () => {
   assert.equal(saved.analysis.lane_width, 8);
   assert.equal(migrateProject(saved).analysis.lane_width, 8);
   assert.equal(migrateProject({ schema_version: 2 }).analysis.lane_width, null);
+});
+
+test('temporary snapshots retain the selected asymmetry mode and R limit', () => {
+  resetState();
+  state.shoulderSensitivity = 80;
+  state.defaultAsymmetry = false;
+  state.maxPeakAsymmetry = 2.4;
+  const saved = JSON.parse(snapshotProject());
+  assert.equal(saved.analysis.default_asymmetry, false);
+  assert.equal(saved.analysis.max_peak_asymmetry, 2.4);
+  const restored = migrateProject(saved);
+  assert.equal(restored.analysis.default_asymmetry, false);
+  assert.equal(restored.analysis.max_peak_asymmetry, 2.4);
 });
 
 test('project migration keeps full RGB unfiltered and restores the RGB window', () => {

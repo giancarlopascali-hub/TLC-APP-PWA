@@ -5,7 +5,7 @@ import { render } from './render.js';
 import { saveUndoSnapshot, persistProject } from './storage.js';
 import { $, state } from './state.js';
 import { setStatus } from './ui.js';
-import { analysisReady, applyFitDecision, fitCurveSeries, fitGroups, fitIntegrationSegments,
+import { analysisReady, applyFitDecision, fitAsymmetrySummary, fitCurveSeries, fitGroups, fitIntegrationSegments,
   invalidateKeptFitGroup, isFittedPeak, isInsideActiveFit, overlapsActiveFit } from './shoulder.js';
 
 const PADDING = Object.freeze({ left: 50, right: 50, top: 30, bottom: 40 });
@@ -97,6 +97,7 @@ function fitReviewPanel(lane) {
     const improvement = Number(quality.improvement);
     const detail = `Rf ${Number(group.original_peak?.rf ?? 0).toFixed(3)} · ${Number.isFinite(area) ? area.toFixed(1) : '—'} measured AU · ${Number.isFinite(improvement) ? (improvement * 100).toFixed(0) : '—'}% fit improvement`;
     card.append(makeElement('p', { className: 'fit-metrics', text: detail }));
+    card.append(makeElement('p', { className: 'fit-metrics', text: fitAsymmetrySummary(group) }));
     card.append(makeElement('p', { className: 'fit-metrics', text: `Width ${Number(group.width_threshold ?? state.peakThreshold).toFixed(0)}% · ${fitIntegrationSegments(group).length} measured interval${fitIntegrationSegments(group).length === 1 ? '' : 's'} · ${group.status === 'resolved' ? 'two fitted components' : String(group.reason || 'insufficient evidence').replaceAll('_', ' ')}` }));
     if (group.status === 'resolved') {
       const actions = makeElement('div', { className: 'fit-actions' });

@@ -88,11 +88,13 @@ index units until a validated calibration is applied.
 
 `shoulder_sensitivity = 0` leaves ordinary detection and areas unchanged.
 At a positive sensitivity, a secondary curvature candidate is tested against
-the local noise and measured (pre-normalisation) contrast. The backend fits
-one asymmetric peak and two constrained asymmetric components to the same
-measured `profile_analysis` samples. It recommends a split only when the two
-component fit is stable and materially better; otherwise the candidate is
-reported as unresolved and the ordinary peak stays active.
+the local noise and measured (pre-normalisation) contrast. By default, the
+established asymmetric two-component fit is used unchanged. If Default
+asymmetry is unchecked, `max_peak_asymmetry` (R, 1–5) limits the ratio of each
+component's larger half-width to its smaller half-width. The constrained fit
+must have measured-profile squared error within 5% of the best unrestricted
+fit. R=1 requires symmetric components. A weak, unstable, or excessive-loss
+candidate is reported as unresolved and the ordinary peak stays active.
 
 For a resolved split, Peak width % defines an interval around each fitted
 component. Overlapping intervals are merged; disjoint intervals keep the gap
@@ -108,7 +110,8 @@ model integral. Relative percentages and area calibration use the allocated
 defines the measured support, and `integration_bounds` is only its outer range.
 The browser lets users keep the original peak or apply the two `split_peaks`
 locally. A fitted peak is read-only until the user chooses Keep single. A
-fitted component outside the physical `0–1` Rf region is not accepted.
+fitted component outside the physical `0–1` Rf region is not accepted. The
+review and report show the selected asymmetry mode and fit diagnostics.
 
 ## Rf policy
 

@@ -1,7 +1,7 @@
 {
   "name": "aq-tlc-mobile",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "scripts": {
     "test:js": "node --test tests/javascript/*.test.mjs"

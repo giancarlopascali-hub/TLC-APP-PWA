@@ -26,7 +26,7 @@ rollback.
 - Crop, rotation, origin/front lines, spotting marks and touch gestures
 - Server-computed density profiles and automatic peak detection
 - Manual peak add, move, resize and delete workflows
-- Optional shoulder fitting with per-candidate Split/Keep review and measured area allocation
+- Optional shoulder fitting with the established default mode or a user-set peak asymmetry limit, per-candidate Split/Keep review and measured area allocation
 - Peak areas calculated from the normalized analytical profile and explicit
   integration bounds
 - Relative, area-calibration and molecular-weight calibration modes

@@ -3,8 +3,9 @@ import test from 'node:test';
 
 import { migrateLaneSchema, remeasurePeak } from '../../frontend/modules/analysis.js';
 import { exportReport, reportFitSummary, reportRows } from '../../frontend/modules/reports.js';
-import { applyFitDecision, fitCurveSeries, fitIntegrationSegments,
-  invalidateKeptFitGroup, tagKeptFitPeaks } from '../../frontend/modules/shoulder.js';
+import { applyFitDecision, fitAsymmetrySummary, fitCurveSeries, fitIntegrationSegments,
+  invalidateKeptFitGroup, normalizeMaxPeakAsymmetry, syncShoulderControl,
+  tagKeptFitPeaks } from '../../frontend/modules/shoulder.js';
 import { state } from '../../frontend/modules/state.js';
 import { migrateProject } from '../../frontend/modules/storage.js';
 
@@ -77,6 +78,7 @@ test('report labels model allocation and the active decision', () => {
   const summary = reportFitSummary(lane);
   const rows = reportRows(lane);
   assert.match(summary, /Split into two fitted components/);
+  assert.match(summary, /Default asymmetry/);
   assert.match(summary, /20\.0 AU/);
   assert.match(rows, /Model allocated/);
   assert.match(rows, />13\.0</);
@@ -90,16 +92,55 @@ test('report labels model allocation and the active decision', () => {
   const escaped = reportFitSummary({ ...lane, fit_groups: [unsafe] });
   assert.doesNotMatch(escaped, /<img src=x/);
   assert.match(escaped, /&lt;img/);
+  const limited = structuredClone(group);
+  limited.quality = { ...limited.quality, max_peak_asymmetry: 1.5, max_fitted_asymmetry: 1.2, fit_loss_pct: 2.2 };
+  assert.match(reportFitSummary({ ...lane, fit_groups: [limited] }), /R limit 1\.5 · fitted max R 1\.20 · fit loss 2\.2%/);
+  assert.match(fitAsymmetrySummary(group), /Default asymmetry/);
 });
 
-test('saved project restores sensitivity and per-group decision', () => {
+test('saved project restores shoulder shape settings and per-group decision', () => {
   const project = migrateProject({
     schema_version: 2,
     image: {}, annotations: { lanes: [] },
-    analysis: { shoulder_sensitivity: 80, fit_overrides: { 'lane:3': 'keep' } },
+    analysis: { shoulder_sensitivity: 80, default_asymmetry: false, max_peak_asymmetry: 2.4,
+      fit_overrides: { 'lane:3': 'keep' } },
   });
   assert.equal(project.analysis.shoulder_sensitivity, 80);
+  assert.equal(project.analysis.default_asymmetry, false);
+  assert.equal(project.analysis.max_peak_asymmetry, 2.4);
   assert.deepEqual(project.analysis.fit_overrides, { 'lane:3': 'keep' });
+  const legacy = migrateProject({ schema_version: 2, image: {}, annotations: { lanes: [] }, analysis: {} });
+  assert.equal(legacy.analysis.default_asymmetry, true);
+  assert.equal(legacy.analysis.max_peak_asymmetry, 1);
+});
+
+test('checkbox and R slider visibility follows shoulder sensitivity and default mode', () => {
+  assert.equal(normalizeMaxPeakAsymmetry(undefined), 1);
+  assert.equal(normalizeMaxPeakAsymmetry(1.26), 1.3);
+  assert.equal(normalizeMaxPeakAsymmetry(10), 5);
+  const elements = Object.fromEntries([
+    'shoulder-sensitivity', 'shoulder-sensitivity-val', 'default-asymmetry-control',
+    'default-asymmetry', 'maximum-asymmetry-control', 'max-peak-asymmetry',
+    'max-peak-asymmetry-val',
+  ].map(id => [id, { value: '', textContent: '', checked: false, hidden: true,
+    classList: { toggle(className, on) { if (className === 'hidden') elements[id].hidden = on; } } }]));
+  const previousDocument = globalThis.document;
+  globalThis.document = { getElementById: id => elements[id] || null };
+  try {
+    syncShoulderControl({ shoulderSensitivity: 0, defaultAsymmetry: false, maxPeakAsymmetry: 2.4 });
+    assert.equal(elements['default-asymmetry-control'].hidden, true);
+    assert.equal(elements['maximum-asymmetry-control'].hidden, true);
+    syncShoulderControl({ shoulderSensitivity: 60, defaultAsymmetry: true, maxPeakAsymmetry: 2.4 });
+    assert.equal(elements['default-asymmetry-control'].hidden, false);
+    assert.equal(elements['default-asymmetry'].checked, true);
+    assert.equal(elements['maximum-asymmetry-control'].hidden, true);
+    syncShoulderControl({ shoulderSensitivity: 60, defaultAsymmetry: false, maxPeakAsymmetry: 2.4 });
+    assert.equal(elements['maximum-asymmetry-control'].hidden, false);
+    assert.equal(elements['max-peak-asymmetry'].value, '2.4');
+    assert.equal(elements['max-peak-asymmetry-val'].textContent, '2.4');
+  } finally {
+    globalThis.document = previousDocument;
+  }
 });
 
 test('pending analysis blocks report export before opening a window', async () => {

@@ -1,5 +1,6 @@
 import { PROJECT_SCHEMA_VERSION, STORAGE_KEY } from './constants.js';
 import { migrateLaneSchema } from './analysis.js';
+import { normalizeMaxPeakAsymmetry } from './shoulder.js';
 import { state, replaceActiveReferences } from './state.js';
 
 function safeJsonParse(raw) {
@@ -29,6 +30,8 @@ function projectPayload() {
       peak_distance: state.peakDistance,
       peak_threshold: state.peakThreshold,
       shoulder_sensitivity: state.shoulderSensitivity,
+      default_asymmetry: state.defaultAsymmetry,
+      max_peak_asymmetry: state.maxPeakAsymmetry,
       fit_overrides: state.fitOverrides,
       lane_width: state.laneWidth,
       target_wavelength: state.targetWavelength,
@@ -83,6 +86,8 @@ export function migrateProject(rawProject) {
       peak_distance: Math.max(1, Math.min(50, Math.round(Number(analysis.peak_distance) || 8))),
       peak_threshold: Math.max(0, Math.min(100, Number(analysis.peak_threshold) || 50)),
       shoulder_sensitivity: Math.max(0, Math.min(100, Number(analysis.shoulder_sensitivity) || 0)),
+      default_asymmetry: analysis.default_asymmetry !== false,
+      max_peak_asymmetry: normalizeMaxPeakAsymmetry(analysis.max_peak_asymmetry),
       fit_overrides: analysis.fit_overrides && typeof analysis.fit_overrides === 'object'
         && !Array.isArray(analysis.fit_overrides)
         ? Object.fromEntries(Object.entries(analysis.fit_overrides).filter(([key, value]) =>
@@ -137,6 +142,8 @@ export function restoreProject(project) {
   state.peakDistance = migrated.analysis.peak_distance;
   state.peakThreshold = migrated.analysis.peak_threshold;
   state.shoulderSensitivity = migrated.analysis.shoulder_sensitivity;
+  state.defaultAsymmetry = migrated.analysis.default_asymmetry;
+  state.maxPeakAsymmetry = migrated.analysis.max_peak_asymmetry;
   state.fitOverrides = migrated.analysis.fit_overrides;
   state.targetWavelength = migrated.analysis.target_wavelength;
   state.wavelengthPreset = migrated.analysis.wavelength_preset;

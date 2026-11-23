@@ -211,6 +211,8 @@ export function buildProfilePayload(image, lanes, settings, detectPeaks) {
     peak_distance: Number(settings.peakDistance),
     peak_threshold: Number(settings.peakThreshold),
     shoulder_sensitivity: Number(settings.shoulderSensitivity) || 0,
+    default_asymmetry: settings.defaultAsymmetry !== false,
+    max_peak_asymmetry: Number(settings.maxPeakAsymmetry) || 1,
     fit_overrides: { ...(settings.fitOverrides || {}) },
     smooth_sigma: SMOOTH_SIGMA,
     polarity_mode: settings.polarityMode,

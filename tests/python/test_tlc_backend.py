@@ -272,12 +272,21 @@ def test_shoulder_split_conserves_measured_width_union_and_zero_is_legacy() -> N
     _signal, payload = shoulder_plate()
     ordinary = tlc_backend.generate_profiles(payload)
     assert ordinary == tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 0})
+    assert ordinary == tlc_backend.generate_profiles({
+        **payload, "shoulder_sensitivity": 0,
+        "default_asymmetry": False, "max_peak_asymmetry": 1,
+    })
     assert len(ordinary["results"][0]["peaks"]) == 1
     assert ordinary["results"][0]["fit_groups"] == []
 
     lane = tlc_backend.generate_profiles({**payload, "shoulder_sensitivity": 80})["results"][0]
+    assert lane == tlc_backend.generate_profiles({
+        **payload, "shoulder_sensitivity": 80,
+        "default_asymmetry": True, "max_peak_asymmetry": 5,
+    })["results"][0]
     assert [peak["idx"] for peak in lane["peaks"]] == pytest.approx([100, 132], abs=3)
     group = lane["fit_groups"][0]
+    assert "max_peak_asymmetry" not in group["quality"]
     assert (group["status"], group["decision"], group["active"]) == ("resolved", "split", True)
     assert group["area_basis"] == "component_threshold_union"
     assert group["split_peaks"] == lane["peaks"]
@@ -303,6 +312,63 @@ def test_shoulder_split_conserves_measured_width_union_and_zero_is_legacy() -> N
     assert high_group["measured_cluster_area"] < 0.2 * tlc_backend.integrate_peak_area(
         high_width["profile_analysis"], outer["lb"], outer["rb"],
     )
+
+
+def test_shape_limited_shoulders_reject_poor_fit_and_resolve_when_relaxed() -> None:
+    _signal, payload = shoulder_plate()
+    strict = tlc_backend.generate_profiles({
+        **payload, "shoulder_sensitivity": 80,
+        "default_asymmetry": False, "max_peak_asymmetry": 1,
+    })["results"][0]
+    assert len(strict["peaks"]) == 1
+    strict_group = strict["fit_groups"][0]
+    assert strict_group["status"] == "unresolved"
+    assert strict_group["reason"] == "fit_quality_vs_unrestricted"
+    assert strict_group["quality"]["max_fitted_asymmetry"] == pytest.approx(1)
+    assert strict_group["quality"]["fit_loss_pct"] > 5
+
+    relaxed = tlc_backend.generate_profiles({
+        **payload, "shoulder_sensitivity": 80,
+        "default_asymmetry": False, "max_peak_asymmetry": 1.5,
+    })["results"][0]
+    assert len(relaxed["peaks"]) == 2
+    relaxed_group = relaxed["fit_groups"][0]
+    assert relaxed_group["status"] == "resolved"
+    assert relaxed_group["quality"]["max_fitted_asymmetry"] <= 1.5
+    assert relaxed_group["quality"]["fit_loss_pct"] <= 5
+    assert sum(peak["area"] for peak in relaxed["peaks"]) == pytest.approx(
+        relaxed_group["measured_cluster_area"], abs=1e-4,
+    )
+
+
+def test_shape_modes_preserve_mobile_rf_gate() -> None:
+    raw, _payload = shoulder_plate()
+    normalized = (raw - raw.min()) / (raw.max() - raw.min()) * 100
+    indices, properties = find_peaks(normalized, prominence=41, distance=8)
+    apex = int(indices[0])
+    left_base = int(properties["left_bases"][0])
+    right_base = int(properties["right_bases"][0])
+    original = {"idx": apex, "rf": 0.5, "area": 1, "area_lb": left_base, "area_rb": right_base}
+    for default_asymmetry, max_peak_asymmetry in ((True, 5), (False, 1.5)):
+        group, peaks = fit_shoulder_group(
+            normalized, raw, lambda _centre, _length: -0.1,
+            tlc_backend.integrate_peak_area, apex, left_base, right_base,
+            0.5, 80, "lane-a:100", original, [], None,
+            default_asymmetry=default_asymmetry,
+            max_peak_asymmetry=max_peak_asymmetry,
+        )
+        assert peaks is None
+        assert group is None or group["quality"]["checks"]["rf_within_solvent_lines"] is False
+
+
+def test_shape_settings_validate_range_and_boolean() -> None:
+    payload = {"image": plate_with_dark_band(), "lanes": []}
+    for value in (0.9, 5.1, float("nan")):
+        with pytest.raises(tlc_backend.ParameterValidationError):
+            tlc_backend.generate_profiles({**payload, "max_peak_asymmetry": value})
+    for value in ("false", 0, None):
+        with pytest.raises(tlc_backend.ParameterValidationError):
+            tlc_backend.generate_profiles({**payload, "default_asymmetry": value})
 
 
 def test_shoulder_keep_override_retains_single_and_offers_local_split() -> None:

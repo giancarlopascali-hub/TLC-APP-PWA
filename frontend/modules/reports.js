@@ -2,7 +2,7 @@ import { areaCalibrationQualifier, areaCalibrationSummary, buildAreaCalibration,
   buildMwCalibration, orderPeakRows, relativeQuantitation } from './calibration.js';
 import { analysisProfileFor } from './analysis.js';
 import { state } from './state.js';
-import { analysisReady, fitCurveSeries, fitGroups, fitIntegrationSegments, isFittedPeak } from './shoulder.js';
+import { analysisReady, fitAsymmetrySummary, fitCurveSeries, fitGroups, fitIntegrationSegments, isFittedPeak } from './shoulder.js';
 
 /** The only serializer used for user-provided strings in printable reports. */
 export function escapeHtml(value) {
@@ -149,7 +149,7 @@ export function reportFitSummary(lane) {
     const area = Number(group.measured_cluster_area);
     const improvement = Number(quality.improvement);
     const segments = fitIntegrationSegments(group);
-    return `<div class="fit-card" style="border:1px solid #b89ad3;border-radius:6px;padding:10px;margin:8px 0;break-inside:avoid"><strong>Shoulder review — ${escapeHtml(result)}</strong><p>Rf ${Number(group.original_peak?.rf ?? 0).toFixed(3)} · Width ${Number(group.width_threshold ?? state.peakThreshold).toFixed(0)}% · ${segments.length} measured interval${segments.length === 1 ? '' : 's'} · cluster ${Number.isFinite(area) ? area.toFixed(1) : '—'} AU · fit improvement ${Number.isFinite(improvement) ? (improvement * 100).toFixed(0) : '—'}%</p></div>`;
+    return `<div class="fit-card" style="border:1px solid #b89ad3;border-radius:6px;padding:10px;margin:8px 0;break-inside:avoid"><strong>Shoulder review — ${escapeHtml(result)}</strong><p>Rf ${Number(group.original_peak?.rf ?? 0).toFixed(3)} · Width ${Number(group.width_threshold ?? state.peakThreshold).toFixed(0)}% · ${segments.length} measured interval${segments.length === 1 ? '' : 's'} · cluster ${Number.isFinite(area) ? area.toFixed(1) : '—'} AU · fit improvement ${Number.isFinite(improvement) ? (improvement * 100).toFixed(0) : '—'}% · ${escapeHtml(fitAsymmetrySummary(group))}</p></div>`;
   }).join('');
   return `<section class="fit-summary" style="margin:18px 0"><h2>Shoulder review</h2>${cards}<p>Fitted component areas partition measured Width%-controlled intervals. The blue trace remains the measured profile; teal and purple lines show the fitted total and components.</p></section>`;
 }

@@ -5,7 +5,7 @@ import { exportReport } from './reports.js';
 import { render } from './render.js';
 import { clearStoredProject, loadStoredProject, persistProject, saveUndoSnapshot } from './storage.js';
 import { $, state } from './state.js';
-import { analysisReady, normalizeShoulderSensitivity } from './shoulder.js';
+import { analysisReady, normalizeMaxPeakAsymmetry, normalizeShoulderSensitivity } from './shoulder.js';
 import { stReady, stSetHeight } from './streamlit_bridge.js';
 import { setBusy, setStatus, setupAnalysisControls, setupProfileMenus, setupSettings, setupTabs, setupToolSelection, syncControls } from './ui.js';
 import { setupCanvasEvents } from './interactions.js';
@@ -71,6 +71,14 @@ export function init() {
     if (next === state.shoulderSensitivity) return;
     saveUndoSnapshot();
     state.shoulderSensitivity = next;
+    state.fitOverrides = {};
+    syncControls(); persistProject(); requestDensitograms(true, { coalesce: false });
+  }, (kind, requested) => {
+    const property = kind === 'default' ? 'defaultAsymmetry' : 'maxPeakAsymmetry';
+    const next = kind === 'default' ? Boolean(requested) : normalizeMaxPeakAsymmetry(requested);
+    if (state[property] === next) return;
+    saveUndoSnapshot();
+    state[property] = next;
     state.fitOverrides = {};
     syncControls(); persistProject(); requestDensitograms(true, { coalesce: false });
   });

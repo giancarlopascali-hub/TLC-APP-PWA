@@ -58,12 +58,15 @@ function profileResponse(request, id) {
 test('profile requests carry the RGB window to the analysis service', () => {
   const settings = {
     peakProminence: 40, peakDistance: 8, peakThreshold: 50,
-    shoulderSensitivity: 80, fitOverrides: { 'lane:3': 'keep' },
+    shoulderSensitivity: 80, defaultAsymmetry: false, maxPeakAsymmetry: 1.5,
+    fitOverrides: { 'lane:3': 'keep' },
     polarityMode: 'default', targetWavelength: 450, wavelengthBandwidth: 25,
     invertColors: false,
   };
   assert.equal(buildProfilePayload('image', [], settings, true).wavelength_bandwidth, 25);
   assert.equal(buildProfilePayload('image', [], settings, true).shoulder_sensitivity, 80);
+  assert.equal(buildProfilePayload('image', [], settings, true).default_asymmetry, false);
+  assert.equal(buildProfilePayload('image', [], settings, true).max_peak_asymmetry, 1.5);
   assert.deepEqual(buildProfilePayload('image', [], settings, true).fit_overrides, { 'lane:3': 'keep' });
 });
 
